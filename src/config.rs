@@ -2,15 +2,20 @@ use failure::ResultExt;
 use log::{debug, trace, Level};
 use std::collections::HashMap;
 use std::fs::read_to_string;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use yaml_rust::{Yaml, YamlLoader};
 
-use crate::log_error::{LogErrCtx, LogError, LogErrorKind};
+use crate::{
+    log_error::{LogErrCtx, LogError, LogErrorKind},
+    LogDestination, DEFAULT_LOG_DEST,
+};
 
 pub struct LogConfig {
     pub default_level: Option<Level>,
     pub mod_level: HashMap<String, Level>,
+    pub log_dest: LogDestination,
+    pub log_stream: Option<PathBuf>,
 }
 
 impl LogConfig {
@@ -18,6 +23,8 @@ impl LogConfig {
         LogConfig {
             default_level: None,
             mod_level: HashMap::new(),
+            log_dest: DEFAULT_LOG_DEST,
+            log_stream: None,
         }
     }
 
@@ -53,6 +60,23 @@ impl LogConfig {
             if let Some(level) = get_yaml_str(yaml_cfg, &["log_level"])? {
                 if let Ok(level) = Level::from_str(level.as_ref()) {
                     log_config.default_level = Some(level);
+                }
+            }
+
+            if let Some(ref dest) = get_yaml_str(yaml_cfg, &["log_dest"])? {
+                // TODO: add other destination types
+                match dest.to_lowercase().as_str() {
+                    "stdout" => log_config.log_dest = LogDestination::STDOUT,
+                    "stream" => {
+                        if let Some(stream_path) = get_yaml_str(yaml_cfg, &["log_stream"])? {
+                            log_config.log_stream = Some(PathBuf::from(stream_path));
+                            log_config.log_dest = LogDestination::STREAM;
+                        } else {
+                            return Err(LogError::from_remark(LogErrorKind::InvParam, &format!("Failed t parse log config in '{}',  No log stream given for log_dest STREAM", config_path.display())));
+                        }
+                    }
+                    // default to DEFAULT_LOG_DEST
+                    _ => (),
                 }
             }
 

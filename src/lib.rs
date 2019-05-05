@@ -5,17 +5,17 @@ use log::{Level, Log, Metadata, Record};
 use regex::Regex;
 use std::collections::HashMap;
 use std::env;
+use std::io::{stderr, stdout, Write};
 use std::mem;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex, Once, ONCE_INIT};
-use std::io::{Write, stderr, stdout}; //, BufWriter};
+use std::sync::{Arc, Mutex, Once, ONCE_INIT}; //, BufWriter};
 mod log_error;
 use log_error::{LogErrCtx, LogError, LogErrorKind};
 
 mod config;
 use config::LogConfig;
 
-pub const DEFAULT_LOG_LEVEL: Level = Level::Warn;
+pub(crate) const DEFAULT_LOG_LEVEL: Level = Level::Warn;
 
 #[derive(Debug, Clone)]
 pub enum LogDestination {
@@ -24,13 +24,12 @@ pub enum LogDestination {
     STREAM,
 }
 
-// cannot be STREAM !! 
-pub const DEFAULT_LOG_DEST: LogDestination = LogDestination::STDERR;
-
+// cannot be STREAM !!
+pub(crate) const DEFAULT_LOG_DEST: LogDestination = LogDestination::STDERR;
 
 struct LoggerParams {
     log_dest: LogDestination,
-    log_stream: Option<Box<Write +Send>>,
+    log_stream: Option<Box<Write + Send>>,
     initialized: bool,
     default_level: Level,
     mod_level: HashMap<String, Level>,
@@ -40,7 +39,7 @@ struct LoggerParams {
 impl LoggerParams {
     pub fn new(log_level: Level) -> LoggerParams {
         LoggerParams {
-            log_dest: DEFAULT_LOG_DEST,            
+            log_dest: DEFAULT_LOG_DEST,
             log_stream: None,
             initialized: false,
             default_level: log_level,
@@ -125,10 +124,13 @@ impl Logger {
         guarded_params.set_max_level();
     }
 
-    pub fn set_log_dest<S:'static +Write + Send>(dest: &LogDestination, stream: Option<S>) -> Result<(),LogError> {
+    pub fn set_log_dest<S: 'static + Write + Send>(
+        dest: &LogDestination,
+        stream: Option<S>,
+    ) -> Result<(), LogError> {
         let logger = Logger::new();
         let mut guarded_params = logger.inner.lock().unwrap();
-        
+
         match dest {
             LogDestination::STREAM => {
                 if let Some(stream) = stream {
@@ -136,15 +138,18 @@ impl Logger {
                     guarded_params.log_stream = Some(Box::new(stream));
                     Ok(())
                 } else {
-                    Err(LogError::from_remark(LogErrorKind::InvParam, &format!("no stream given for log destination type STREAM")))
+                    Err(LogError::from_remark(
+                        LogErrorKind::InvParam,
+                        &format!("no stream given for log destination type STREAM"),
+                    ))
                 }
             }
             _ => {
                 guarded_params.log_stream = None;
                 guarded_params.log_dest = dest.clone();
                 Ok(())
-            },
-        }        
+            }
+        }
     }
 
     pub fn set_mod_config(log_config: &LogConfig) {
@@ -182,17 +187,16 @@ impl Logger {
             None
         };
 
-        let (initialized,max_level,last_max_level) = {
+        let (initialized, max_level, last_max_level) = {
             let mut guarded_params = logger.inner.lock().unwrap();
             let initialized = guarded_params.initialized;
             let last_max_level = guarded_params.max_level;
-            
-            let mut max_level = 
-                if let Some(log_config) = log_config {
-                    guarded_params.set_log_config(&log_config)
-                } else {
-                    Level::max()
-                };
+
+            let mut max_level = if let Some(log_config) = log_config {
+                guarded_params.set_log_config(&log_config)
+            } else {
+                Level::max()
+            };
 
             if level_set {
                 guarded_params.default_level = log_level;
@@ -275,12 +279,13 @@ impl Log for Logger {
             let _res = match guarded_params.log_dest {
                 LogDestination::STDERR => stderr().write(output.as_bytes()),
                 LogDestination::STDOUT => stdout().write(output.as_bytes()),
-                LogDestination::STREAM => 
+                LogDestination::STREAM => {
                     if let Some(ref mut stream) = guarded_params.log_stream {
                         stream.write(output.as_bytes())
                     } else {
                         stderr().write(output.as_bytes())
-                    },
+                    }
+                }
             };
         }
     }
@@ -292,13 +297,13 @@ impl Log for Logger {
                 if let Some(ref mut stream) = guarded_params.log_stream {
                     let _res = stream.flush();
                 }
-            }, 
+            }
             LogDestination::STDERR => {
                 let _res = stderr().flush();
-            },
+            }
             LogDestination::STDOUT => {
                 let _res = stdout().flush();
-            },
+            }
         }
     }
 }
