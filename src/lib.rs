@@ -5,19 +5,17 @@ use log::{Level, Log, Metadata, Record};
 use regex::Regex;
 use std::collections::HashMap;
 use std::env;
-use std::sync::{Arc, Mutex, Once, ONCE_INIT};
-use std::{mem};
+use std::mem;
 use std::str::FromStr;
-
+use std::sync::{Arc, Mutex, Once, ONCE_INIT};
 
 mod log_error;
-use log_error::{LogError, LogErrCtx, LogErrorKind};
+use log_error::{LogErrCtx, LogError, LogErrorKind};
 
 mod config;
 use config::LogConfig;
 
 pub const DEFAULT_LOG_LEVEL: Level = Level::Warn;
-
 
 #[derive(Debug)]
 struct LoggerParams {
@@ -29,9 +27,9 @@ struct LoggerParams {
 
 impl LoggerParams {
     pub fn new(log_level: Level) -> LoggerParams {
-        LoggerParams{
+        LoggerParams {
             initialized: false,
-            default_level: log_level, 
+            default_level: log_level,
             max_level: log_level,
             mod_level: HashMap::new(),
         }
@@ -41,7 +39,7 @@ impl LoggerParams {
         // TODO: implement
         let mut max_level = self.default_level;
         for level in self.mod_level.values() {
-            if &max_level < level  {
+            if &max_level < level {
                 max_level = level.clone();
             }
         }
@@ -51,7 +49,7 @@ impl LoggerParams {
     fn set_log_config(&mut self, log_config: &LogConfig) -> Level {
         let mut max_level = Level::Error;
         for module in log_config.mod_level.keys() {
-            if let Some(ref level) =  log_config.mod_level.get(module) {
+            if let Some(ref level) = log_config.mod_level.get(module) {
                 self.mod_level.insert(module.clone(), (*level).clone());
 
                 if *level > &max_level {
@@ -66,10 +64,10 @@ impl LoggerParams {
         }
 
         max_level
-    } 
+    }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct Logger {
     inner: Arc<Mutex<LoggerParams>>,
     module_re: Regex,
@@ -97,26 +95,35 @@ impl Logger {
         }
     }
 
-    pub fn set_log_level(log_level: Level) {        
+    pub fn set_log_level(log_level: Level) {
         let logger = Logger::new();
         let mut guarded_params = logger.inner.lock().unwrap();
         guarded_params.default_level = log_level;
         guarded_params.set_max_level();
     }
 
-    pub fn set_mod_level(module: &str,log_level: Level) {        
+    pub fn set_mod_level(module: &str, log_level: Level) {
         let logger = Logger::new();
         let mut guarded_params = logger.inner.lock().unwrap();
-        guarded_params.mod_level.insert(String::from(module),log_level);
+        guarded_params
+            .mod_level
+            .insert(String::from(module), log_level);
         guarded_params.set_max_level();
+    }
+
+    pub fn set_mod_config(log_config: &LogConfig) {
+        let logger = Logger::new();
+        let mut guarded_params = logger.inner.lock().unwrap();
+        let max_level = guarded_params.set_log_config(log_config);
+        if max_level > guarded_params.max_level {
+            guarded_params.max_level = max_level;
+        }
     }
 
     pub fn get_log_level(&self) -> Level {
         let guarded_params = self.inner.lock().unwrap();
         guarded_params.default_level.clone()
     }
-
-
 
     // TODO: initialize from string loglevel instead
     pub fn initialise(level: Option<&str>) -> Result<(), LogError> {
@@ -127,41 +134,41 @@ impl Logger {
         let mut initialized = false;
         let mut max_level = Level::Error;
         let mut last_max_level = max_level;
-        
 
         if let Some(level) = level {
-            log_level = Level::from_str(level).context(LogErrCtx::from_remark(LogErrorKind::InvParam,&format!("failed to parse LogLevel from '{}'", log_level)))?;
+            log_level = Level::from_str(level).context(LogErrCtx::from_remark(
+                LogErrorKind::InvParam,
+                &format!("failed to parse LogLevel from '{}'", log_level),
+            ))?;
             level_set = true;
         }
 
-        let log_config = 
-            if let Ok(config_path) = env::var("LOG_CONFIG") {
-                Some(LogConfig::from_file(config_path)?)
-            } else {
-                None
-            };
+        let log_config = if let Ok(config_path) = env::var("LOG_CONFIG") {
+            Some(LogConfig::from_file(config_path)?)
+        } else {
+            None
+        };
 
-        
-            {            
+        {
             let mut guarded_params = logger.inner.lock().unwrap();
             initialized = guarded_params.initialized;
             last_max_level = guarded_params.max_level;
-            
+
             if let Some(log_config) = log_config {
                 max_level = guarded_params.set_log_config(&log_config);
             }
 
-            if level_set {           
+            if level_set {
                 guarded_params.default_level = log_level;
             }
 
             if guarded_params.default_level > max_level {
                 max_level = guarded_params.default_level;
-            }    
-
-            guarded_params.max_level = max_level;                            
-            guarded_params.initialized = true;
             }
+
+            guarded_params.max_level = max_level;
+            guarded_params.initialized = true;
+        }
 
         if initialized == false {
             log::set_boxed_logger(Box::new(logger)).context(LogErrCtx::from_remark(
@@ -169,7 +176,7 @@ impl Logger {
                 "Logger::initialise: failed to initialize logger",
             ))?;
         }
-        
+
         if last_max_level != max_level {
             log::set_max_level(max_level.to_level_filter());
         }
@@ -177,17 +184,17 @@ impl Logger {
         Ok(())
     }
 
-/*
-    // TODO: not my favorite solution but the corresponding level function is private
-    fn level_from_usize(level: usize) -> Option<Level> {
-        match level {
-            0 => None,
-            1 => Some(Level::Info),
-            2 => Some(Level::Debug),
-            _ => Some(Level::Trace),
+    /*
+        // TODO: not my favorite solution but the corresponding level function is private
+        fn level_from_usize(level: usize) -> Option<Level> {
+            match level {
+                0 => None,
+                1 => Some(Level::Info),
+                2 => Some(Level::Debug),
+                _ => Some(Level::Trace),
+            }
         }
-    }
-*/    
+    */
 }
 
 impl Log for Logger {
@@ -203,7 +210,7 @@ impl Log for Logger {
             }
         }
 
-        let level = {            
+        let level = {
             let guarded_params = self.inner.lock().unwrap();
             let mut level = guarded_params.default_level;
             if let Some(mod_level) = guarded_params.mod_level.get(&mod_name) {
