@@ -1,13 +1,8 @@
-use log::{Level};
+use log::Level;
 use std::collections::HashMap;
-use std::io::{Write};
+use std::io::Write;
 
-use super::{
-    DEFAULT_LOG_DEST,
-    LogError,
-    LogErrorKind,
-};
-
+use super::{LogError, LogErrorKind, DEFAULT_LOG_DEST};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum LogDestination {
@@ -42,13 +37,13 @@ impl<'a> LoggerParams {
     }
 
     pub fn set_initialized(&mut self) -> bool {
-        if ! self.initialized {
+        if !self.initialized {
             self.initialized = true;
-            false 
+            false
         } else {
             true
-        }        
-    } 
+        }
+    }
 
     fn recalculate_max_level(&mut self) {
         // TODO: implement
@@ -73,7 +68,7 @@ impl<'a> LoggerParams {
         }
     }
 
-    pub fn set_mod_level(&'a mut self, module: &str, level: &Level) -> &'a Level {        
+    pub fn set_mod_level(&'a mut self, module: &str, level: &Level) -> &'a Level {
         self.mod_level.insert(String::from(module), level.clone());
         if level > &self.max_level {
             self.max_level = level.clone();
@@ -83,7 +78,7 @@ impl<'a> LoggerParams {
         &self.max_level
     }
 
-    pub fn set_mod_config(&'a mut self, mod_config: &HashMap<String,Level>) -> &'a Level {        
+    pub fn set_mod_config(&'a mut self, mod_config: &HashMap<String, Level>) -> &'a Level {
         for module in mod_config.keys() {
             if let Some(ref level) = mod_config.get(module) {
                 self.mod_level.insert(module.clone(), (*level).clone());
@@ -93,7 +88,7 @@ impl<'a> LoggerParams {
         &self.max_level
     }
 
-    pub fn set_default_level(&'a mut self, level: &Level) -> &'a Level {        
+    pub fn set_default_level(&'a mut self, level: &Level) -> &'a Level {
         self.default_level = level.clone();
         if level > &self.max_level {
             self.max_level = level.clone();
@@ -111,12 +106,16 @@ impl<'a> LoggerParams {
         &self.log_dest
     }
 
-    pub fn get_log_stream(&mut self) -> &mut Option<Box<'static +Write + Send>> {
+    pub fn get_log_stream(&mut self) -> &mut Option<Box<'static + Write + Send>> {
         &mut self.log_stream
     }
 
-    pub fn set_log_dest<S:'static +Write + Send>(&mut self, dest: &LogDestination, stream: Option<S>) -> Result<(),LogError> {
-        // TODO: flush ? 
+    pub fn set_log_dest<S: 'static + Write + Send>(
+        &mut self,
+        dest: &LogDestination,
+        stream: Option<S>,
+    ) -> Result<(), LogError> {
+        // TODO: flush ?
         match dest {
             LogDestination::STREAM => {
                 if let Some(stream) = stream {
@@ -129,7 +128,7 @@ impl<'a> LoggerParams {
                         "no stream given for log destination type STREAM",
                     ))
                 }
-            },
+            }
             _ => {
                 self.log_stream = None;
                 self.log_dest = dest.clone();

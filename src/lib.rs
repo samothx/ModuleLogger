@@ -4,7 +4,7 @@ use failure::ResultExt;
 use log::{Level, Log, Metadata, Record};
 use regex::Regex;
 use std::env;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::{stderr, stdout, BufWriter, Write};
 use std::mem;
 use std::str::FromStr;
@@ -84,7 +84,7 @@ impl<'a> Logger {
         let logger = Logger::new();
         let mut guarded_params = logger.inner.lock().unwrap();
         let last_max_level = guarded_params.get_max_level().clone();
-        
+
         if let Some(ref default_level) = log_config.default_level {
             guarded_params.set_default_level(default_level);
         }
@@ -98,12 +98,16 @@ impl<'a> Logger {
         if &log_config.log_dest != log_dest || log_dest == &LogDestination::STREAM {
             if log_config.log_dest == LogDestination::STREAM {
                 if let Some(ref log_path) = log_config.log_stream {
-                    let stream = BufWriter::new(File::open(log_path).context(
-                        LogErrCtx::from_remark(
-                            LogErrorKind::Upstream,
-                            &format!("Failed to open log file: '{}'", log_path.display()),
-                        ),
-                    )?);
+                    let stream = BufWriter::new(
+                        OpenOptions::new()
+                            .write(true)
+                            .append(true)
+                            .open(log_path)
+                            .context(LogErrCtx::from_remark(
+                                LogErrorKind::Upstream,
+                                &format!("Failed to open log file: '{}'", log_path.display()),
+                            ))?,
+                    );
                     guarded_params.set_log_dest(&log_config.log_dest, Some(stream))?;
                 }
             } else {
@@ -137,7 +141,7 @@ impl<'a> Logger {
 
         let max_level = {
             let mut guarded_params = logger.inner.lock().unwrap();
-            
+
             if guarded_params.is_initialized() {
                 return Err(LogError::from_remark(
                     LogErrorKind::InvState,
@@ -146,7 +150,6 @@ impl<'a> Logger {
             }
 
             if let Some(log_config) = log_config {
-            
                 if let Some(ref default_level) = log_config.default_level {
                     guarded_params.set_default_level(default_level);
                 }
@@ -156,12 +159,19 @@ impl<'a> Logger {
                 if log_config.log_dest != DEFAULT_LOG_DEST {
                     if log_config.log_dest == LogDestination::STREAM {
                         if let Some(ref log_path) = log_config.log_stream {
-                            let stream = BufWriter::new(File::open(log_path).context(
-                                LogErrCtx::from_remark(
-                                    LogErrorKind::Upstream,
-                                    &format!("Failed to open log file: '{}'", log_path.display()),
-                                ),
-                            )?);
+                            let stream = BufWriter::new(
+                                OpenOptions::new()
+                                    .write(true)
+                                    .append(true)
+                                    .open(log_path)
+                                    .context(LogErrCtx::from_remark(
+                                        LogErrorKind::Upstream,
+                                        &format!(
+                                            "Failed to open log file: '{}'",
+                                            log_path.display()
+                                        ),
+                                    ))?,
+                            );
                             guarded_params.set_log_dest(&log_config.log_dest, Some(stream))?;
                         }
                     } else {
@@ -231,11 +241,11 @@ impl Log for Logger {
             );
 
             let output = match curr_level {
-                Level::Error => output.red(),
-                Level::Warn => output.yellow(),
-                Level::Info => output.green(),
-                Level::Debug => output.cyan(),
-                Level::Trace => output.blue(),
+                Level::Error => format!("{}", output.red()),
+                Level::Warn => format!("{}", output.yellow()),
+                Level::Info => format!("{}", output.green()),
+                Level::Debug => format!("{}", output.cyan()),
+                Level::Trace => format!("{}", output.blue()),
             };
 
             let _res = match guarded_params.get_log_dest() {
