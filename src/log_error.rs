@@ -7,6 +7,8 @@ pub enum LogErrorKind {
     Upstream,
     #[fail(display = "An invalid value was encountered")]
     InvParam,
+    #[fail(display = "An invalid application state was encountered")]
+    InvState,
 }
 
 pub struct LogErrCtx {

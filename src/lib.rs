@@ -3,9 +3,9 @@ use colored::*;
 use failure::ResultExt;
 use log::{Level, Log, Metadata, Record};
 use regex::Regex;
-use std::collections::HashMap;
 use std::env;
-use std::io::{stderr, stdout, Write};
+use std::fs::File;
+use std::io::{stderr, stdout, BufWriter, Write};
 use std::mem;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, Once, ONCE_INIT}; //, BufWriter};
@@ -15,70 +15,15 @@ use log_error::{LogErrCtx, LogError, LogErrorKind};
 mod config;
 use config::LogConfig;
 
-pub(crate) const DEFAULT_LOG_LEVEL: Level = Level::Warn;
+mod logger_params;
+use logger_params::{LogDestination, LoggerParams};
 
-#[derive(Debug, Clone)]
-pub enum LogDestination {
-    STDOUT,
-    STDERR,
-    STREAM,
-}
+pub(crate) const DEFAULT_LOG_LEVEL: Level = Level::Warn;
 
 // cannot be STREAM !!
 pub(crate) const DEFAULT_LOG_DEST: LogDestination = LogDestination::STDERR;
 
-struct LoggerParams {
-    log_dest: LogDestination,
-    log_stream: Option<Box<Write + Send>>,
-    initialized: bool,
-    default_level: Level,
-    mod_level: HashMap<String, Level>,
-    max_level: Level,
-}
-
-impl LoggerParams {
-    pub fn new(log_level: Level) -> LoggerParams {
-        LoggerParams {
-            log_dest: DEFAULT_LOG_DEST,
-            log_stream: None,
-            initialized: false,
-            default_level: log_level,
-            max_level: log_level,
-            mod_level: HashMap::new(),
-        }
-    }
-
-    pub fn set_max_level(&mut self) {
-        // TODO: implement
-        let mut max_level = self.default_level;
-        for level in self.mod_level.values() {
-            if &max_level < level {
-                max_level = level.clone();
-            }
-        }
-        self.max_level = max_level;
-    }
-
-    fn set_log_config(&mut self, log_config: &LogConfig) -> Level {
-        let mut max_level = Level::Error;
-        for module in log_config.mod_level.keys() {
-            if let Some(ref level) = log_config.mod_level.get(module) {
-                self.mod_level.insert(module.clone(), (*level).clone());
-
-                if *level > &max_level {
-                    max_level = (*level).clone();
-                }
-            }
-        }
-
-        // only set this if none was given in function parameters
-        if let Some(default_level) = log_config.default_level {
-            self.default_level = default_level;
-        }
-
-        max_level
-    }
-}
+const NO_STREAM: Option<Box<'static + Write + Send>> = None;
 
 #[derive(Clone)]
 pub struct Logger {
@@ -86,7 +31,7 @@ pub struct Logger {
     module_re: Regex,
 }
 
-impl Logger {
+impl<'a> Logger {
     pub fn new() -> Logger {
         static mut SINGLETON: *const Logger = 0 as *const Logger;
         static ONCE: Once = ONCE_INIT;
@@ -108,20 +53,21 @@ impl Logger {
         }
     }
 
-    pub fn set_log_level(log_level: Level) {
+    pub fn set_default_level(log_level: &Level) {
         let logger = Logger::new();
         let mut guarded_params = logger.inner.lock().unwrap();
-        guarded_params.default_level = log_level;
-        guarded_params.set_max_level();
+        guarded_params.set_default_level(log_level);
     }
 
-    pub fn set_mod_level(module: &str, log_level: Level) {
+    pub fn get_default_level(&self) -> Level {
+        let guarded_params = self.inner.lock().unwrap();
+        guarded_params.get_default_level().clone()
+    }
+
+    pub fn set_mod_level(module: &str, log_level: &Level) {
         let logger = Logger::new();
         let mut guarded_params = logger.inner.lock().unwrap();
-        guarded_params
-            .mod_level
-            .insert(String::from(module), log_level);
-        guarded_params.set_max_level();
+        guarded_params.set_mod_level(module, log_level);
     }
 
     pub fn set_log_dest<S: 'static + Write + Send>(
@@ -129,41 +75,43 @@ impl Logger {
         stream: Option<S>,
     ) -> Result<(), LogError> {
         let logger = Logger::new();
+        logger.flush();
         let mut guarded_params = logger.inner.lock().unwrap();
-
-        match dest {
-            LogDestination::STREAM => {
-                if let Some(stream) = stream {
-                    guarded_params.log_dest = dest.clone();
-                    guarded_params.log_stream = Some(Box::new(stream));
-                    Ok(())
-                } else {
-                    Err(LogError::from_remark(
-                        LogErrorKind::InvParam,
-                        &format!("no stream given for log destination type STREAM"),
-                    ))
-                }
-            }
-            _ => {
-                guarded_params.log_stream = None;
-                guarded_params.log_dest = dest.clone();
-                Ok(())
-            }
-        }
+        guarded_params.set_log_dest(dest, stream)
     }
 
-    pub fn set_mod_config(log_config: &LogConfig) {
+    pub fn set_log_config(log_config: &LogConfig) -> Result<(), LogError> {
         let logger = Logger::new();
         let mut guarded_params = logger.inner.lock().unwrap();
-        let max_level = guarded_params.set_log_config(log_config);
-        if max_level > guarded_params.max_level {
-            guarded_params.max_level = max_level;
+        let last_max_level = guarded_params.get_max_level().clone();
+        
+        if let Some(ref default_level) = log_config.default_level {
+            guarded_params.set_default_level(default_level);
         }
-    }
 
-    pub fn get_log_level(&self) -> Level {
-        let guarded_params = self.inner.lock().unwrap();
-        guarded_params.default_level.clone()
+        let max_level = guarded_params.set_mod_config(&log_config.mod_level);
+        if max_level != &last_max_level {
+            log::set_max_level(max_level.to_level_filter());
+        }
+
+        let log_dest = guarded_params.get_log_dest();
+        if &log_config.log_dest != log_dest || log_dest == &LogDestination::STREAM {
+            if log_config.log_dest == LogDestination::STREAM {
+                if let Some(ref log_path) = log_config.log_stream {
+                    let stream = BufWriter::new(File::open(log_path).context(
+                        LogErrCtx::from_remark(
+                            LogErrorKind::Upstream,
+                            &format!("Failed to open log file: '{}'", log_path.display()),
+                        ),
+                    )?);
+                    guarded_params.set_log_dest(&log_config.log_dest, Some(stream))?;
+                }
+            } else {
+                guarded_params.set_log_dest(&log_config.log_dest, NO_STREAM)?;
+            }
+        }
+
+        Ok(())
     }
 
     // TODO: initialize from string loglevel instead
@@ -171,15 +119,15 @@ impl Logger {
         let logger = Logger::new();
 
         let mut log_level = DEFAULT_LOG_LEVEL;
-        let mut level_set = false;
-
-        if let Some(level) = level {
+        let level_set = if let Some(level) = level {
             log_level = Level::from_str(level).context(LogErrCtx::from_remark(
                 LogErrorKind::InvParam,
                 &format!("failed to parse LogLevel from '{}'", log_level),
             ))?;
-            level_set = true;
-        }
+            true
+        } else {
+            false
+        };
 
         let log_config = if let Ok(config_path) = env::var("LOG_CONFIG") {
             Some(LogConfig::from_file(config_path)?)
@@ -187,41 +135,55 @@ impl Logger {
             None
         };
 
-        let (initialized, max_level, last_max_level) = {
+        let max_level = {
             let mut guarded_params = logger.inner.lock().unwrap();
-            let initialized = guarded_params.initialized;
-            let last_max_level = guarded_params.max_level;
+            
+            if guarded_params.is_initialized() {
+                return Err(LogError::from_remark(
+                    LogErrorKind::InvState,
+                    "The logger is already initialzed",
+                ));
+            }
 
-            let mut max_level = if let Some(log_config) = log_config {
-                guarded_params.set_log_config(&log_config)
-            } else {
-                Level::max()
-            };
+            if let Some(log_config) = log_config {
+            
+                if let Some(ref default_level) = log_config.default_level {
+                    guarded_params.set_default_level(default_level);
+                }
+
+                guarded_params.set_mod_config(&log_config.mod_level);
+
+                if log_config.log_dest != DEFAULT_LOG_DEST {
+                    if log_config.log_dest == LogDestination::STREAM {
+                        if let Some(ref log_path) = log_config.log_stream {
+                            let stream = BufWriter::new(File::open(log_path).context(
+                                LogErrCtx::from_remark(
+                                    LogErrorKind::Upstream,
+                                    &format!("Failed to open log file: '{}'", log_path.display()),
+                                ),
+                            )?);
+                            guarded_params.set_log_dest(&log_config.log_dest, Some(stream))?;
+                        }
+                    } else {
+                        guarded_params.set_log_dest(&log_config.log_dest, NO_STREAM)?;
+                    }
+                }
+            }
 
             if level_set {
-                guarded_params.default_level = log_level;
+                guarded_params.set_default_level(&log_level);
             }
 
-            if guarded_params.default_level > max_level {
-                max_level = guarded_params.default_level;
-            }
-
-            guarded_params.max_level = max_level;
-            guarded_params.initialized = true;
-
-            (initialized, max_level, last_max_level)
+            guarded_params.set_initialized();
+            guarded_params.get_max_level().clone()
         };
 
-        if initialized == false {
-            log::set_boxed_logger(Box::new(logger)).context(LogErrCtx::from_remark(
-                LogErrorKind::Upstream,
-                "Logger::initialise: failed to initialize logger",
-            ))?;
-        }
+        log::set_boxed_logger(Box::new(logger)).context(LogErrCtx::from_remark(
+            LogErrorKind::Upstream,
+            "Logger::initialise: failed to initialize logger",
+        ))?;
 
-        if last_max_level != max_level {
-            log::set_max_level(max_level.to_level_filter());
-        }
+        log::set_max_level(max_level.to_level_filter());
 
         Ok(())
     }
@@ -252,11 +214,11 @@ impl Log for Logger {
             }
         }
 
-        let curr_level = record.metadata().level();
+        let curr_level = &record.metadata().level();
         let mut guarded_params = self.inner.lock().unwrap();
-        let mut level = guarded_params.default_level;
-        if let Some(mod_level) = guarded_params.mod_level.get(&mod_name) {
-            level = *mod_level;
+        let mut level = guarded_params.get_default_level();
+        if let Some(mod_level) = guarded_params.get_mod_level(&mod_name) {
+            level = mod_level;
         }
 
         if curr_level <= level {
@@ -276,11 +238,11 @@ impl Log for Logger {
                 Level::Trace => output.blue(),
             };
 
-            let _res = match guarded_params.log_dest {
+            let _res = match guarded_params.get_log_dest() {
                 LogDestination::STDERR => stderr().write(output.as_bytes()),
                 LogDestination::STDOUT => stdout().write(output.as_bytes()),
                 LogDestination::STREAM => {
-                    if let Some(ref mut stream) = guarded_params.log_stream {
+                    if let Some(ref mut stream) = guarded_params.get_log_stream() {
                         stream.write(output.as_bytes())
                     } else {
                         stderr().write(output.as_bytes())
@@ -292,9 +254,9 @@ impl Log for Logger {
 
     fn flush(&self) {
         let mut guarded_params = self.inner.lock().unwrap();
-        match guarded_params.log_dest {
+        match guarded_params.get_log_dest() {
             LogDestination::STREAM => {
-                if let Some(ref mut stream) = guarded_params.log_stream {
+                if let Some(ref mut stream) = guarded_params.get_log_stream() {
                     let _res = stream.flush();
                 }
             }
