@@ -14,7 +14,7 @@ use crate::{
     },
 };
 
-pub(crate) struct LogConfig {
+pub struct LogConfig {
     pub default_level: Option<Level>,
     pub mod_level: HashMap<String, Level>,
 }
