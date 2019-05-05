@@ -39,8 +39,14 @@ impl LoggerParams {
 
     pub fn set_max_level(&mut self) {
         // TODO: implement
+        let mut max_level = self.default_level;
+        for level in self.mod_level.values() {
+            if &max_level < level  {
+                max_level = level.clone();
+            }
+        }
+        self.max_level = max_level;
     }
-
 }
 
 #[derive(Debug,Clone)]
@@ -71,9 +77,17 @@ impl Logger {
         }
     }
 
-    pub fn set_log_level(&mut self, log_level: Level) {
-        let mut guarded_params = self.inner.lock().unwrap();
+    pub fn set_log_level(log_level: Level) {        
+        let logger = Logger::new();
+        let mut guarded_params = logger.inner.lock().unwrap();
         guarded_params.default_level = log_level;
+        guarded_params.set_max_level();
+    }
+
+    pub fn set_mod_level(module: &str,log_level: Level) {        
+        let logger = Logger::new();
+        let mut guarded_params = logger.inner.lock().unwrap();
+        guarded_params.mod_level.insert(String::from(module),log_level);
         guarded_params.set_max_level();
     }
 
@@ -121,10 +135,8 @@ impl Logger {
                 }
 
                 // only set this if none was given in function parameters
-                if !level_set {
-                    if let Some(default_level) = log_config.default_level {
-                        guarded_params.default_level = default_level;
-                    }
+                if let Some(default_level) = log_config.default_level {
+                    guarded_params.default_level = default_level;
                 }
             }
 
