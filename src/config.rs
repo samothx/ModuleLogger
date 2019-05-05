@@ -7,22 +7,23 @@ use failure::{ResultExt};
 use std::str::FromStr;
 
 use crate::{
-    DEFAULT_LOG_LEVEL,
-    log_error::{LogError, LogErrorKind, LogErrCtx},
+    log_error::{
+        LogError, 
+        LogErrorKind, 
+        LogErrCtx
+    },
 };
 
 pub(crate) struct LogConfig {
-    pub default_level: Level,
-    pub max_level: Level,
+    pub default_level: Option<Level>,
     pub mod_level: HashMap<String, Level>,
 }
 
 impl LogConfig {
     pub fn default() -> LogConfig {
         LogConfig{
-            default_level: DEFAULT_LOG_LEVEL,
+            default_level: None,
             mod_level: HashMap::new(),
-            max_level: DEFAULT_LOG_LEVEL,
         }
     }
 
@@ -56,8 +57,7 @@ impl LogConfig {
                 let yaml_cfg = &yaml_cfg[0];
                 if let Some(level) = get_yaml_str(yaml_cfg, &["log_level"])? {
                     if let Ok(level) = Level::from_str(level.as_ref()) {
-                        log_config.default_level = level;
-                        log_config.max_level = level;
+                        log_config.default_level = Some(level);
                     }
                 }
 
@@ -68,9 +68,6 @@ impl LogConfig {
                                 if let Some(level_str) = get_yaml_str(module, &["level"])? {
                                     if let Ok(level) = Level::from_str(level_str.as_ref()) {                                        
                                         log_config.mod_level.insert(String::from(name), level);
-                                        if level > log_config.max_level {
-                                            log_config.max_level = level;
-                                        }
                                     }
                                 }
                             }
@@ -78,7 +75,6 @@ impl LogConfig {
                     }
                 }
             }
-
 
         Ok(log_config)
     }
