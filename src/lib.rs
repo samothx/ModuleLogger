@@ -4,7 +4,7 @@ use failure::ResultExt;
 use log::{Level, Log, Metadata, Record};
 use regex::Regex;
 use std::env;
-use std::fs::{File, OpenOptions};
+use std::fs::{OpenOptions};
 use std::io::{stderr, stdout, BufWriter, Write};
 use std::mem;
 use std::str::FromStr;
@@ -102,6 +102,7 @@ impl<'a> Logger {
                         OpenOptions::new()
                             .write(true)
                             .append(true)
+                            .create(true)
                             .open(log_path)
                             .context(LogErrCtx::from_remark(
                                 LogErrorKind::Upstream,
@@ -163,6 +164,7 @@ impl<'a> Logger {
                                 OpenOptions::new()
                                     .write(true)
                                     .append(true)
+                                    .create(true)
                                     .open(log_path)
                                     .context(LogErrCtx::from_remark(
                                         LogErrorKind::Upstream,
