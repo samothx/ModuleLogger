@@ -28,7 +28,7 @@ pub const NO_STREAM: Option<Box<'static + Write + Send>> = None;
 
 pub use log::Level;
 
-// TODO: implement integrated (sized) memory buffer as LogDestination
+// TODO: implement size limit for memory buffer
 
 #[derive(Clone)]
 pub struct Logger {
