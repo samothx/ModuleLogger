@@ -9,11 +9,13 @@ pub enum LogDestination {
     STDOUT,
     STDERR,
     STREAM,
+    BUFFER,
 }
 
 pub(crate) struct LoggerParams {
     log_dest: LogDestination,
     log_stream: Option<Box<Write + Send>>,
+    log_buffer: Option<Vec<u8>>,
     initialized: bool,
     default_level: Level,
     mod_level: HashMap<String, Level>,
@@ -25,6 +27,7 @@ impl<'a> LoggerParams {
         LoggerParams {
             log_dest: DEFAULT_LOG_DEST,
             log_stream: None,
+            log_buffer: None,
             initialized: false,
             default_level: log_level,
             max_level: log_level,
@@ -110,12 +113,32 @@ impl<'a> LoggerParams {
         &mut self.log_stream
     }
 
+    pub fn get_log_buffer(&mut self) -> Option<&mut Vec<u8>> {
+        if let Some(ref mut buffer) = self.log_buffer{
+            Some(buffer)
+        } else {
+            None
+        }
+    }
+
+    pub fn retrieve_log_buffer(&mut self) -> Option<Vec<u8>> {
+        if let Some(ref mut buffer) = self.log_buffer {
+            let tmp = buffer.clone();
+            buffer.clear();
+            Some(tmp)
+        } else {
+            None
+        }
+    }
+
+
     pub fn set_log_dest<S: 'static + Write + Send>(
         &mut self,
         dest: &LogDestination,
         stream: Option<S>,
     ) -> Result<(), LogError> {
         // TODO: flush ?
+
         match dest {
             LogDestination::STREAM => {
                 if let Some(stream) = stream {
@@ -128,6 +151,12 @@ impl<'a> LoggerParams {
                         "no stream given for log destination type STREAM",
                     ))
                 }
+            }
+            LogDestination::BUFFER => {
+                self.log_dest = dest.clone();
+                self.log_stream = None;
+                self.log_buffer = Some(Vec::new());
+                Ok(())
             }
             _ => {
                 self.log_stream = None;

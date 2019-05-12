@@ -1,7 +1,7 @@
 use chrono::Local;
 use colored::*;
 use failure::ResultExt;
-use log::{Level, Log, Metadata, Record};
+use log::{Log, Metadata, Record};
 use regex::Regex;
 use std::env;
 use std::fs::{OpenOptions};
@@ -16,14 +16,19 @@ mod config;
 use config::LogConfig;
 
 mod logger_params;
-use logger_params::{LogDestination, LoggerParams};
+use logger_params::{LoggerParams};
+pub use logger_params::{LogDestination};
 
 pub(crate) const DEFAULT_LOG_LEVEL: Level = Level::Warn;
 
 // cannot be STREAM !!
 pub(crate) const DEFAULT_LOG_DEST: LogDestination = LogDestination::STDERR;
 
-const NO_STREAM: Option<Box<'static + Write + Send>> = None;
+pub const NO_STREAM: Option<Box<'static + Write + Send>> = None;
+
+pub use log::Level;
+
+// TODO: implement integrated (sized) memory buffer as LogDestination
 
 #[derive(Clone)]
 pub struct Logger {
@@ -53,6 +58,10 @@ impl<'a> Logger {
         }
     }
 
+    pub fn flush() {
+        Logger::new().flush();
+    }
+
     pub fn set_default_level(log_level: &Level) {
         let logger = Logger::new();
         let mut guarded_params = logger.inner.lock().unwrap();
@@ -69,6 +78,13 @@ impl<'a> Logger {
         let mut guarded_params = logger.inner.lock().unwrap();
         guarded_params.set_mod_level(module, log_level);
     }
+
+    pub fn get_buffer() -> Option<Vec<u8>> {
+        let logger = Logger::new();
+        let mut guarded_params = logger.inner.lock().unwrap();
+        guarded_params.retrieve_log_buffer()
+    }
+
 
     pub fn set_log_dest<S: 'static + Write + Send>(
         dest: &LogDestination,
@@ -219,17 +235,22 @@ impl Log for Logger {
     }
 
     fn log(&self, record: &Record) {
-        let mut mod_name = String::from("undefined");
-        if let Some(mod_path) = record.module_path() {
-            if let Some(ref captures) = self.module_re.captures(mod_path) {
-                mod_name = String::from(captures.get(1).unwrap().as_str());
-            }
-        }
+
+        let (mod_name,mod_tag) =
+            if let Some(mod_path) = record.module_path() {
+                if let Some(ref captures) = self.module_re.captures(mod_path) {
+                    (String::from(mod_path), String::from(captures.get(1).unwrap().as_str()))
+                } else {
+                    (String::from(mod_path), String::from("main"))
+                }
+            } else {
+                (String::from("undefined"), String::from("undefined"))
+            };
 
         let curr_level = &record.metadata().level();
         let mut guarded_params = self.inner.lock().unwrap();
         let mut level = guarded_params.get_default_level();
-        if let Some(mod_level) = guarded_params.get_mod_level(&mod_name) {
+        if let Some(mod_level) = guarded_params.get_mod_level(&mod_tag) {
             level = mod_level;
         }
 
@@ -259,7 +280,14 @@ impl Log for Logger {
                     } else {
                         stderr().write(output.as_bytes())
                     }
-                }
+                },
+                LogDestination::BUFFER => {
+                    if let Some(ref mut buffer) = guarded_params.get_log_buffer() {
+                        buffer.write(output.as_bytes())
+                    } else {
+                        stderr().write(output.as_bytes())
+                    }
+                },
             };
         }
     }
@@ -271,13 +299,34 @@ impl Log for Logger {
                 if let Some(ref mut stream) = guarded_params.get_log_stream() {
                     let _res = stream.flush();
                 }
-            }
+            },
+            LogDestination::BUFFER => {
+            },
             LogDestination::STDERR => {
                 let _res = stderr().flush();
-            }
+            },
             LogDestination::STDOUT => {
                 let _res = stdout().flush();
             }
         }
     }
 }
+
+/*
+#[cfg(test)]
+mod test {
+    use log::{info};
+    use crate::{Logger, LogDestination};
+    #[test]
+    fn log_to_mem() {
+        Logger::initialise(Some("debug")).unwrap();
+        let buffer: Vec<u8> = vec![];
+        
+        Logger::set_log_dest(&LogDestination::STREAM, Some(buffer)).unwrap();
+
+        info!("logging to memory buffer");
+
+        assert!(!buffer.is_empty());
+    }
+}
+*/
