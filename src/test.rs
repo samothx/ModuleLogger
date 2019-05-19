@@ -1,8 +1,8 @@
 use log::{info, warn};
-use std::fs::{File};
+use std::fs::File;
 use std::io::{BufWriter, Write};
 
-use ::mod_logger::{Logger,Level, LogDestination, NO_STREAM};
+use ::mod_logger::{Level, LogDestination, Logger, NO_STREAM};
 
 fn main() {
     if let Err(_why) = Logger::initialise(Some("info")) {
@@ -17,27 +17,26 @@ fn main() {
     info!("Logger initialized2");
     warn!("Logger initialized3");
 
-
-
     Logger::set_log_dest(
-        &LogDestination::STREAM,
-        Some(BufWriter::new(File::create("log.txt").unwrap()))).unwrap();
+        &LogDestination::Stream,
+        Some(BufWriter::new(File::create("log.txt").unwrap())),
+    )
+    .unwrap();
 
     info!("Logger initialized4");
     warn!("Logger initialized5");
 
     Logger::flush();
 
-
-    Logger::set_log_dest(&LogDestination::BUFFER,NO_STREAM).unwrap();
+    Logger::set_log_dest(&LogDestination::Buffer, NO_STREAM).unwrap();
 
     info!("Logger initialized6");
     warn!("Logger initialized7");
 
-
     if let Some(buffer) = Logger::get_buffer() {
-        File::create("log_buf.txt").unwrap().write(buffer.as_ref());
+        File::create("log_buf.txt")
+            .unwrap()
+            .write(buffer.as_ref())
+            .unwrap();
     }
-
-
 }

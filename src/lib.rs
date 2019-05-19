@@ -4,7 +4,7 @@ use failure::ResultExt;
 use log::{Log, Metadata, Record};
 use regex::Regex;
 use std::env;
-use std::fs::{OpenOptions};
+use std::fs::OpenOptions;
 use std::io::{stderr, stdout, BufWriter, Write};
 use std::mem;
 use std::str::FromStr;
@@ -16,13 +16,13 @@ mod config;
 use config::LogConfig;
 
 mod logger_params;
-use logger_params::{LoggerParams};
-pub use logger_params::{LogDestination};
+pub use logger_params::LogDestination;
+use logger_params::LoggerParams;
 
 pub(crate) const DEFAULT_LOG_LEVEL: Level = Level::Warn;
 
 // cannot be STREAM !!
-pub(crate) const DEFAULT_LOG_DEST: LogDestination = LogDestination::STDERR;
+pub(crate) const DEFAULT_LOG_DEST: LogDestination = LogDestination::Stderr;
 
 pub const NO_STREAM: Option<Box<'static + Write + Send>> = None;
 
@@ -85,7 +85,6 @@ impl<'a> Logger {
         guarded_params.retrieve_log_buffer()
     }
 
-
     pub fn set_log_dest<S: 'static + Write + Send>(
         dest: &LogDestination,
         stream: Option<S>,
@@ -101,19 +100,20 @@ impl<'a> Logger {
         let mut guarded_params = logger.inner.lock().unwrap();
         let last_max_level = guarded_params.get_max_level().clone();
 
-        if let Some(ref default_level) = log_config.default_level {
-            guarded_params.set_default_level(default_level);
-        }
+        guarded_params.set_default_level(&log_config.get_default_level()?);
 
-        let max_level = guarded_params.set_mod_config(&log_config.mod_level);
+        let max_level = guarded_params.set_mod_config(&log_config.get_mod_level()?);
         if max_level != &last_max_level {
             log::set_max_level(max_level.to_level_filter());
         }
 
         let log_dest = guarded_params.get_log_dest();
-        if &log_config.log_dest != log_dest || log_dest == &LogDestination::STREAM {
-            if log_config.log_dest == LogDestination::STREAM {
-                if let Some(ref log_path) = log_config.log_stream {
+        let cfg_log_dest = log_config.get_log_dest();
+        let stream_log = log_dest.is_stream_dest();
+
+        if cfg_log_dest != log_dest || stream_log == true {
+            if stream_log == true {
+                if let Some(log_path) = log_config.get_log_stream() {
                     let stream = BufWriter::new(
                         OpenOptions::new()
                             .write(true)
@@ -125,10 +125,10 @@ impl<'a> Logger {
                                 &format!("Failed to open log file: '{}'", log_path.display()),
                             ))?,
                     );
-                    guarded_params.set_log_dest(&log_config.log_dest, Some(stream))?;
+                    guarded_params.set_log_dest(cfg_log_dest, Some(stream))?;
                 }
             } else {
-                guarded_params.set_log_dest(&log_config.log_dest, NO_STREAM)?;
+                guarded_params.set_log_dest(cfg_log_dest, NO_STREAM)?;
             }
         }
 
@@ -139,21 +139,16 @@ impl<'a> Logger {
     pub fn initialise(level: Option<&str>) -> Result<(), LogError> {
         let logger = Logger::new();
 
-        let mut log_level = DEFAULT_LOG_LEVEL;
-        let level_set = if let Some(level) = level {
-            log_level = Level::from_str(level).context(LogErrCtx::from_remark(
-                LogErrorKind::InvParam,
-                &format!("failed to parse LogLevel from '{}'", log_level),
-            ))?;
-            true
+        let (log_level, level_set) = if let Some(level) = level {
+            (
+                Level::from_str(level).context(LogErrCtx::from_remark(
+                    LogErrorKind::InvParam,
+                    &format!("failed to parse LogLevel from '{}'", level),
+                ))?,
+                true,
+            )
         } else {
-            false
-        };
-
-        let log_config = if let Ok(config_path) = env::var("LOG_CONFIG") {
-            Some(LogConfig::from_file(config_path)?)
-        } else {
-            None
+            (DEFAULT_LOG_LEVEL, false)
         };
 
         let max_level = {
@@ -166,16 +161,18 @@ impl<'a> Logger {
                 ));
             }
 
-            if let Some(log_config) = log_config {
-                if let Some(ref default_level) = log_config.default_level {
-                    guarded_params.set_default_level(default_level);
-                }
+            if let Ok(config_path) = env::var("LOG_CONFIG") {
+                let log_config = LogConfig::from_file(config_path)?;
 
-                guarded_params.set_mod_config(&log_config.mod_level);
+                guarded_params.set_default_level(&log_config.get_default_level()?);
 
-                if log_config.log_dest != DEFAULT_LOG_DEST {
-                    if log_config.log_dest == LogDestination::STREAM {
-                        if let Some(ref log_path) = log_config.log_stream {
+                guarded_params.set_mod_config(&log_config.get_mod_level()?);
+
+                let cfg_log_dest = log_config.get_log_dest();
+
+                if cfg_log_dest != &DEFAULT_LOG_DEST {
+                    if cfg_log_dest.is_stream_dest() {
+                        if let Some(log_path) = log_config.get_log_stream() {
                             let stream = BufWriter::new(
                                 OpenOptions::new()
                                     .write(true)
@@ -190,10 +187,10 @@ impl<'a> Logger {
                                         ),
                                     ))?,
                             );
-                            guarded_params.set_log_dest(&log_config.log_dest, Some(stream))?;
+                            guarded_params.set_log_dest(cfg_log_dest, Some(stream))?;
                         }
                     } else {
-                        guarded_params.set_log_dest(&log_config.log_dest, NO_STREAM)?;
+                        guarded_params.set_log_dest(cfg_log_dest, NO_STREAM)?;
                     }
                 }
             }
@@ -235,17 +232,18 @@ impl Log for Logger {
     }
 
     fn log(&self, record: &Record) {
-
-        let (mod_name,mod_tag) =
-            if let Some(mod_path) = record.module_path() {
-                if let Some(ref captures) = self.module_re.captures(mod_path) {
-                    (String::from(mod_path), String::from(captures.get(1).unwrap().as_str()))
-                } else {
-                    (String::from(mod_path), String::from("main"))
-                }
+        let (mod_name, mod_tag) = if let Some(mod_path) = record.module_path() {
+            if let Some(ref captures) = self.module_re.captures(mod_path) {
+                (
+                    String::from(mod_path),
+                    String::from(captures.get(1).unwrap().as_str()),
+                )
             } else {
-                (String::from("undefined"), String::from("undefined"))
-            };
+                (String::from(mod_path), String::from("main"))
+            }
+        } else {
+            (String::from("undefined"), String::from("undefined"))
+        };
 
         let curr_level = &record.metadata().level();
         let mut guarded_params = self.inner.lock().unwrap();
@@ -272,40 +270,82 @@ impl Log for Logger {
             };
 
             let _res = match guarded_params.get_log_dest() {
-                LogDestination::STDERR => stderr().write(output.as_bytes()),
-                LogDestination::STDOUT => stdout().write(output.as_bytes()),
-                LogDestination::STREAM => {
+                LogDestination::Stderr => stderr().write(output.as_bytes()),
+                LogDestination::Stdout => stdout().write(output.as_bytes()),
+                LogDestination::Stream => {
                     if let Some(ref mut stream) = guarded_params.get_log_stream() {
                         stream.write(output.as_bytes())
                     } else {
                         stderr().write(output.as_bytes())
                     }
-                },
-                LogDestination::BUFFER => {
+                }
+                LogDestination::StreamStdout => {
+                    if let Some(ref mut stream) = guarded_params.get_log_stream() {
+                        let _wres = stream.write(output.as_bytes());
+                    }
+                    stdout().write(output.as_bytes())
+                }
+                LogDestination::StreamStderr => {
+                    if let Some(ref mut stream) = guarded_params.get_log_stream() {
+                        let _wres = stream.write(output.as_bytes());
+                    }
+                    stderr().write(output.as_bytes())
+                }
+                LogDestination::Buffer => {
                     if let Some(ref mut buffer) = guarded_params.get_log_buffer() {
                         buffer.write(output.as_bytes())
                     } else {
                         stderr().write(output.as_bytes())
                     }
-                },
+                }
+                LogDestination::BufferStdout => {
+                    if let Some(ref mut buffer) = guarded_params.get_log_buffer() {
+                        let _wres = buffer.write(output.as_bytes());
+                    }
+                    stdout().write(output.as_bytes())
+                }
+                LogDestination::BufferStderr => {
+                    if let Some(ref mut buffer) = guarded_params.get_log_buffer() {
+                        let _wres = buffer.write(output.as_bytes());
+                    }
+                    stderr().write(output.as_bytes())
+                }
             };
+            ()
         }
     }
 
     fn flush(&self) {
         let mut guarded_params = self.inner.lock().unwrap();
         match guarded_params.get_log_dest() {
-            LogDestination::STREAM => {
+            LogDestination::Stream => {
                 if let Some(ref mut stream) = guarded_params.get_log_stream() {
                     let _res = stream.flush();
                 }
-            },
-            LogDestination::BUFFER => {
-            },
-            LogDestination::STDERR => {
+            }
+            LogDestination::StreamStderr => {
+                if let Some(ref mut stream) = guarded_params.get_log_stream() {
+                    let _res = stream.flush();
+                    let _res = stderr().flush();
+                }
+            }
+            LogDestination::StreamStdout => {
+                if let Some(ref mut stream) = guarded_params.get_log_stream() {
+                    let _res = stream.flush();
+                    let _res = stdout().flush();
+                }
+            }
+            LogDestination::Buffer => {}
+            LogDestination::BufferStderr => {
                 let _res = stderr().flush();
-            },
-            LogDestination::STDOUT => {
+            }
+            LogDestination::BufferStdout => {
+                let _res = stdout().flush();
+            }
+            LogDestination::Stderr => {
+                let _res = stderr().flush();
+            }
+            LogDestination::Stdout => {
                 let _res = stdout().flush();
             }
         }
@@ -321,7 +361,7 @@ mod test {
     fn log_to_mem() {
         Logger::initialise(Some("debug")).unwrap();
         let buffer: Vec<u8> = vec![];
-        
+
         Logger::set_log_dest(&LogDestination::STREAM, Some(buffer)).unwrap();
 
         info!("logging to memory buffer");

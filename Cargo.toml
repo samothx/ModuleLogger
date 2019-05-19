@@ -16,7 +16,9 @@ path = "src/test.rs"
 log = { version = "^0.4.5", features = ["std"] }
 chrono = "0.4.6"
 stderrlog = "*"
-yaml-rust = "0.4"
+# yaml-rust = "0.4"
 colored = "1.7"
 regex = "1"
 failure = "*"
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.8"

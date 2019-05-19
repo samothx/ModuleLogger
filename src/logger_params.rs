@@ -1,15 +1,34 @@
 use log::Level;
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::io::Write;
 
 use super::{LogError, LogErrorKind, DEFAULT_LOG_DEST};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub enum LogDestination {
-    STDOUT,
-    STDERR,
-    STREAM,
-    BUFFER,
+    Stdout,
+    Stderr,
+    Stream,
+    StreamStdout,
+    StreamStderr,
+    Buffer,
+    BufferStdout,
+    BufferStderr,
+}
+
+impl LogDestination {
+    pub fn is_stream_dest(&self) -> bool {
+        self == &LogDestination::Stream
+            || self == &LogDestination::StreamStderr
+            || self == &LogDestination::StreamStdout
+    }
+
+    pub fn is_buffer_dest(&self) -> bool {
+        self == &LogDestination::Buffer
+            || self == &LogDestination::BufferStderr
+            || self == &LogDestination::BufferStdout
+    }
 }
 
 pub(crate) struct LoggerParams {
@@ -114,7 +133,7 @@ impl<'a> LoggerParams {
     }
 
     pub fn get_log_buffer(&mut self) -> Option<&mut Vec<u8>> {
-        if let Some(ref mut buffer) = self.log_buffer{
+        if let Some(ref mut buffer) = self.log_buffer {
             Some(buffer)
         } else {
             None
@@ -131,7 +150,6 @@ impl<'a> LoggerParams {
         }
     }
 
-
     pub fn set_log_dest<S: 'static + Write + Send>(
         &mut self,
         dest: &LogDestination,
@@ -139,30 +157,26 @@ impl<'a> LoggerParams {
     ) -> Result<(), LogError> {
         // TODO: flush ?
 
-        match dest {
-            LogDestination::STREAM => {
-                if let Some(stream) = stream {
-                    self.log_dest = dest.clone();
-                    self.log_stream = Some(Box::new(stream));
-                    Ok(())
-                } else {
-                    Err(LogError::from_remark(
-                        LogErrorKind::InvParam,
-                        "no stream given for log destination type STREAM",
-                    ))
-                }
-            }
-            LogDestination::BUFFER => {
+        if dest.is_stream_dest() {
+            if let Some(stream) = stream {
                 self.log_dest = dest.clone();
-                self.log_stream = None;
-                self.log_buffer = Some(Vec::new());
+                self.log_stream = Some(Box::new(stream));
                 Ok(())
+            } else {
+                Err(LogError::from_remark(
+                    LogErrorKind::InvParam,
+                    &format!("no stream given for log destination type {:?}", dest),
+                ))
             }
-            _ => {
-                self.log_stream = None;
-                self.log_dest = dest.clone();
-                Ok(())
-            }
+        } else if dest.is_buffer_dest() {
+            self.log_dest = dest.clone();
+            self.log_stream = None;
+            self.log_buffer = Some(Vec::new());
+            Ok(())
+        } else {
+            self.log_stream = None;
+            self.log_dest = dest.clone();
+            Ok(())
         }
     }
 }
