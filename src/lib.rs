@@ -95,6 +95,13 @@ impl<'a> Logger {
         guarded_params.set_log_dest(dest, stream)
     }
 
+    pub fn get_log_dest() -> LogDestination {
+        let logger = Logger::new();
+        let mut guarded_params = logger.inner.lock().unwrap();
+        guarded_params.get_log_dest().clone()
+    }
+
+
     pub fn set_log_config(log_config: &LogConfig) -> Result<(), LogError> {
         let logger = Logger::new();
         let mut guarded_params = logger.inner.lock().unwrap();
