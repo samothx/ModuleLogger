@@ -97,7 +97,7 @@ impl<'a> Logger {
 
     pub fn get_log_dest() -> LogDestination {
         let logger = Logger::new();
-        let mut guarded_params = logger.inner.lock().unwrap();
+        let guarded_params = logger.inner.lock().unwrap();
         guarded_params.get_log_dest().clone()
     }
 
@@ -143,19 +143,40 @@ impl<'a> Logger {
     }
 
     // TODO: initialize from string loglevel instead
+
+
+
+    /*
+        // TODO: not my favorite solution but the corresponding level function is private
+        fn level_from_usize(level: usize) -> Option<Level> {
+            match level {
+                0 => None,
+                1 => Some(Level::Info),
+                2 => Some(Level::Debug),
+                _ => Some(Level::Trace),
+            }
+        }
+    */
+
+
     pub fn initialise(level: Option<&str>) -> Result<(), LogError> {
+        if let Some(level) = level {
+            Logger::initialise_v2(Some(&Level::from_str(level).context(LogErrCtx::from_remark(
+                    LogErrorKind::InvParam,
+                    &format!("failed to parse LogLevel from '{}'", level),
+            ))?), None, NO_STREAM)
+        } else {
+            Logger::initialise_v2(None, None, NO_STREAM)
+        }
+    }
+
+    pub fn initialise_v2<S: 'static + Write + Send>(level: Option<&Level>, dest: Option<&LogDestination>, stream: Option<S>) -> Result<(), LogError> {
         let logger = Logger::new();
 
         let (log_level, level_set) = if let Some(level) = level {
-            (
-                Level::from_str(level).context(LogErrCtx::from_remark(
-                    LogErrorKind::InvParam,
-                    &format!("failed to parse LogLevel from '{}'", level),
-                ))?,
-                true,
-            )
+            (level, true)
         } else {
-            (DEFAULT_LOG_LEVEL, false)
+            (&DEFAULT_LOG_LEVEL, false)
         };
 
         let max_level = {
@@ -177,33 +198,56 @@ impl<'a> Logger {
 
                 let cfg_log_dest = log_config.get_log_dest();
 
-                if cfg_log_dest != &DEFAULT_LOG_DEST {
-                    if cfg_log_dest.is_stream_dest() {
-                        if let Some(log_path) = log_config.get_log_stream() {
-                            let stream = BufWriter::new(
-                                OpenOptions::new()
-                                    .write(true)
-                                    .append(true)
-                                    .create(true)
-                                    .open(log_path)
-                                    .context(LogErrCtx::from_remark(
-                                        LogErrorKind::Upstream,
-                                        &format!(
-                                            "Failed to open log file: '{}'",
-                                            log_path.display()
-                                        ),
-                                    ))?,
-                            );
-                            guarded_params.set_log_dest(cfg_log_dest, Some(stream))?;
+                if let None = dest {
+                    if cfg_log_dest != &DEFAULT_LOG_DEST {
+                        if cfg_log_dest.is_stream_dest() {
+                            if let Some(log_path) = log_config.get_log_stream() {
+                                let stream = BufWriter::new(
+                                    OpenOptions::new()
+                                        .write(true)
+                                        .append(true)
+                                        .create(true)
+                                        .open(log_path)
+                                        .context(LogErrCtx::from_remark(
+                                            LogErrorKind::Upstream,
+                                            &format!(
+                                                "Failed to open log file: '{}'",
+                                                log_path.display()
+                                            ),
+                                        ))?,
+                                );
+                                guarded_params.set_log_dest(cfg_log_dest, Some(stream))?;
+                            } else {
+                               return Err(LogError::from_remark(
+                                   LogErrorKind::InvParam,
+                                   &format!("the required parameter log_stream could not be found for log dest {:?}", cfg_log_dest)));
+                            }
+                        } else {
+                            guarded_params.set_log_dest(cfg_log_dest, NO_STREAM)?;
                         }
-                    } else {
-                        guarded_params.set_log_dest(cfg_log_dest, NO_STREAM)?;
                     }
                 }
             }
 
             if level_set {
                 guarded_params.set_default_level(&log_level);
+            }
+
+            if let Some(dest) = dest {
+                if dest != &DEFAULT_LOG_DEST {
+                    if dest.is_stream_dest() {
+                        if let Some(stream) = stream {
+                            guarded_params.set_log_dest(&dest, Some(stream))?;
+                        } else {
+                            return Err(LogError::from_remark(
+                                LogErrorKind::InvParam,
+                                &format!("the required parameter stream could not be found for log dest: '{:?}", dest)));
+                        }
+
+                    } else {
+                        guarded_params.set_log_dest(&dest, NO_STREAM)?;
+                    }
+                }
             }
 
             guarded_params.set_initialized();
@@ -220,17 +264,7 @@ impl<'a> Logger {
         Ok(())
     }
 
-    /*
-        // TODO: not my favorite solution but the corresponding level function is private
-        fn level_from_usize(level: usize) -> Option<Level> {
-            match level {
-                0 => None,
-                1 => Some(Level::Info),
-                2 => Some(Level::Debug),
-                _ => Some(Level::Trace),
-            }
-        }
-    */
+
 }
 
 impl Log for Logger {
