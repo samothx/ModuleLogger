@@ -29,7 +29,12 @@ pub const NO_STREAM: Option<Box<'static + Write + Send>> = None;
 pub use log::Level;
 
 // TODO: implement size limit for memory buffer
+// TODO: Drop initialise functions and rather use a set_config function that can repeatedly reset the configuration
 
+
+#[doc = "The Log Consumer.
+Implements a singleton holding the initialized LoggerParams
+"]
 #[derive(Clone)]
 pub struct Logger {
     inner: Arc<Mutex<LoggerParams>>,
@@ -37,7 +42,9 @@ pub struct Logger {
 }
 
 impl<'a> Logger {
-    pub fn new() -> Logger {
+    #[doc="Create a new Logger or retrieve the existing one.\
+    The function is private, call initialize or initialize_v2 to initialize a logger."]
+    fn new() -> Logger {
         static mut SINGLETON: *const Logger = 0 as *const Logger;
         static ONCE: Once = ONCE_INIT;
 
@@ -58,33 +65,39 @@ impl<'a> Logger {
         }
     }
 
+    #[doc="Flush the contents of log buffers"]
     pub fn flush() {
         Logger::new().flush();
     }
 
+    #[doc="Modify the default level of the logger"]
     pub fn set_default_level(log_level: &Level) {
         let logger = Logger::new();
         let mut guarded_params = logger.inner.lock().unwrap();
         guarded_params.set_default_level(log_level);
     }
 
+    #[doc="Retrieve the default level of the logger"]
     pub fn get_default_level(&self) -> Level {
         let guarded_params = self.inner.lock().unwrap();
         guarded_params.get_default_level().clone()
     }
 
+    #[doc="Modify the log level for a module"]
     pub fn set_mod_level(module: &str, log_level: &Level) {
         let logger = Logger::new();
         let mut guarded_params = logger.inner.lock().unwrap();
         guarded_params.set_mod_level(module, log_level);
     }
 
+    #[doc="Retrieve the curret log buffer, if available"]
     pub fn get_buffer() -> Option<Vec<u8>> {
         let logger = Logger::new();
         let mut guarded_params = logger.inner.lock().unwrap();
         guarded_params.retrieve_log_buffer()
     }
 
+    #[doc="Set the log destination"]
     pub fn set_log_dest<S: 'static + Write + Send>(
         dest: &LogDestination,
         stream: Option<S>,
@@ -95,13 +108,14 @@ impl<'a> Logger {
         guarded_params.set_log_dest(dest, stream)
     }
 
+    #[doc="Retrieve the current log destination"]
     pub fn get_log_dest() -> LogDestination {
         let logger = Logger::new();
         let guarded_params = logger.inner.lock().unwrap();
         guarded_params.get_log_dest().clone()
     }
 
-
+    #[doc="Set the log configuration"]
     pub fn set_log_config(log_config: &LogConfig) -> Result<(), LogError> {
         let logger = Logger::new();
         let mut guarded_params = logger.inner.lock().unwrap();
@@ -144,8 +158,6 @@ impl<'a> Logger {
 
     // TODO: initialize from string loglevel instead
 
-
-
     /*
         // TODO: not my favorite solution but the corresponding level function is private
         fn level_from_usize(level: usize) -> Option<Level> {
@@ -158,19 +170,26 @@ impl<'a> Logger {
         }
     */
 
-
     pub fn initialise(level: Option<&str>) -> Result<(), LogError> {
         if let Some(level) = level {
-            Logger::initialise_v2(Some(&Level::from_str(level).context(LogErrCtx::from_remark(
+            Logger::initialise_v2(
+                Some(&Level::from_str(level).context(LogErrCtx::from_remark(
                     LogErrorKind::InvParam,
                     &format!("failed to parse LogLevel from '{}'", level),
-            ))?), None, NO_STREAM)
+                ))?),
+                None,
+                NO_STREAM,
+            )
         } else {
             Logger::initialise_v2(None, None, NO_STREAM)
         }
     }
 
-    pub fn initialise_v2<S: 'static + Write + Send>(level: Option<&Level>, dest: Option<&LogDestination>, stream: Option<S>) -> Result<(), LogError> {
+    pub fn initialise_v2<S: 'static + Write + Send>(
+        level: Option<&Level>,
+        dest: Option<&LogDestination>,
+        stream: Option<S>,
+    ) -> Result<(), LogError> {
         let logger = Logger::new();
 
         let (log_level, level_set) = if let Some(level) = level {
@@ -218,7 +237,7 @@ impl<'a> Logger {
                                 );
                                 guarded_params.set_log_dest(cfg_log_dest, Some(stream))?;
                             } else {
-                               return Err(LogError::from_remark(
+                                return Err(LogError::from_remark(
                                    LogErrorKind::InvParam,
                                    &format!("the required parameter log_stream could not be found for log dest {:?}", cfg_log_dest)));
                             }
@@ -243,7 +262,6 @@ impl<'a> Logger {
                                 LogErrorKind::InvParam,
                                 &format!("the required parameter stream could not be found for log dest: '{:?}", dest)));
                         }
-
                     } else {
                         guarded_params.set_log_dest(&dest, NO_STREAM)?;
                     }
@@ -263,8 +281,6 @@ impl<'a> Logger {
 
         Ok(())
     }
-
-
 }
 
 impl Log for Logger {
@@ -286,7 +302,10 @@ impl Log for Logger {
             (String::from("undefined"), String::from("undefined"))
         };
 
+        //dbg!(format!("mod_name: {} - mod_tag: {}", mod_name, mod_tag));
+
         let curr_level = &record.metadata().level();
+
         let mut guarded_params = self.inner.lock().unwrap();
         let mut level = guarded_params.get_default_level();
         if let Some(mod_level) = guarded_params.get_mod_level(&mod_tag) {

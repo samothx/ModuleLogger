@@ -13,6 +13,8 @@ use crate::{
     LogDestination, DEFAULT_LOG_DEST, DEFAULT_LOG_LEVEL,
 };
 
+// TODO: create log config builder and initialise Logger with config object, instead of using complex parameters for Logger::initialise
+
 #[derive(Debug, Deserialize)]
 pub struct LogConfig {
     default_level: Option<String>,

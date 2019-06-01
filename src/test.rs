@@ -4,6 +4,13 @@ use std::io::{BufWriter, Write};
 
 use ::mod_logger::{Level, LogDestination, Logger, NO_STREAM};
 
+mod test_mod {
+    use log::warn;
+    pub fn test_func() {
+        warn!("test_func: This is a test_func");
+    }
+}
+
 fn main() {
     if let Err(_why) = Logger::initialise(Some("info")) {
         println!("Logger failed to initialize");
@@ -32,6 +39,8 @@ fn main() {
 
     info!("Logger initialized6");
     warn!("Logger initialized7");
+
+    test_mod::test_func();
 
     if let Some(buffer) = Logger::get_buffer() {
         File::create("log_buf.txt")
