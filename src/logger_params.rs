@@ -5,7 +5,6 @@ use std::io::{stderr, stdout, Write};
 
 use super::{LogError, LogErrorKind, DEFAULT_LOG_DEST};
 
-
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub enum LogDestination {
     Stdout,
@@ -18,25 +17,29 @@ pub enum LogDestination {
     BufferStderr,
 }
 
-const DEST_TX: &[(&str,LogDestination);8] = &[
-    ("stdout",LogDestination::Stdout),
-    ("stderr",LogDestination::Stderr),
-    ("stream",LogDestination::Stream),
-    ("streamstdout",LogDestination::StreamStdout),
-    ("streamstderr",LogDestination::StreamStderr),
-    ("buffer",LogDestination::Buffer),
-    ("bufferstdout",LogDestination::BufferStdout),
-    ("bufferstderr",LogDestination::BufferStderr),
+const DEST_TX: &[(&str, LogDestination); 8] = &[
+    ("stdout", LogDestination::Stdout),
+    ("stderr", LogDestination::Stderr),
+    ("stream", LogDestination::Stream),
+    ("streamstdout", LogDestination::StreamStdout),
+    ("streamstderr", LogDestination::StreamStderr),
+    ("buffer", LogDestination::Buffer),
+    ("bufferstdout", LogDestination::BufferStdout),
+    ("bufferstderr", LogDestination::BufferStderr),
 ];
-
 
 impl LogDestination {
     pub fn from_str(dest: &str) -> Result<LogDestination, LogError> {
-        if let Some(pos) =
-            DEST_TX.iter().position(|val| val.0.eq_ignore_ascii_case(dest) ) {
-                Ok(DEST_TX[pos].1.clone())
+        if let Some(pos) = DEST_TX
+            .iter()
+            .position(|val| val.0.eq_ignore_ascii_case(dest))
+        {
+            Ok(DEST_TX[pos].1.clone())
         } else {
-            Err(LogError::from_remark(LogErrorKind::InvParam, &format!("Invalid log destination string encountered: '{}'", dest)))
+            Err(LogError::from_remark(
+                LogErrorKind::InvParam,
+                &format!("Invalid log destination string encountered: '{}'", dest),
+            ))
         }
     }
 
@@ -72,6 +75,7 @@ pub(crate) struct LoggerParams {
     default_level: Level,
     mod_level: HashMap<String, Level>,
     max_level: Level,
+    initialised: bool,
 }
 
 impl<'a> LoggerParams {
@@ -83,6 +87,16 @@ impl<'a> LoggerParams {
             default_level: log_level,
             max_level: log_level,
             mod_level: HashMap::new(),
+            initialised: false,
+        }
+    }
+
+    pub fn initialised(&mut self) -> bool {
+        if self.initialised {
+            true
+        } else {
+            self.initialised = true;
+            false
         }
     }
 
@@ -170,7 +184,7 @@ impl<'a> LoggerParams {
     }
 
     pub fn flush(&mut self) {
-        if  self.log_dest.is_stream_dest() {
+        if self.log_dest.is_stream_dest() {
             if let Some(ref mut stream) = self.get_log_stream() {
                 let _res = stream.flush();
             }
