@@ -12,10 +12,7 @@ mod test_mod {
 }
 
 fn main() {
-    if let Err(_why) = Logger::initialise(Some("info")) {
-        println!("Logger failed to initialize");
-        std::process::exit(1);
-    }
+    Logger::set_default_level(&Level::Info);
 
     info!("Logger initialized1");
 
