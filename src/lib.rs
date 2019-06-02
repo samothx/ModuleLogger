@@ -52,10 +52,11 @@ impl<'a> Logger {
     fn new() -> Logger {
         static mut SINGLETON: *const Logger = 0 as *const Logger;
         static ONCE: Once = ONCE_INIT;
-
+        dbg!("Logger::new: entered");
         unsafe {
             ONCE.call_once(|| {
                 // Make it
+                dbg!("call_once");
                 let singleton = Logger {
                     module_re: Regex::new(r#"^[^:]+::(.*)$"#).unwrap(),
                     inner: Arc::new(Mutex::new(LoggerParams::new(DEFAULT_LOG_LEVEL))),
@@ -71,6 +72,7 @@ impl<'a> Logger {
                 }
             });
 
+            dbg!("Logger::new: done");
             // Now we give out a copy of the data that is safe to use concurrently.
             (*SINGLETON).clone()
         }
@@ -82,7 +84,7 @@ impl<'a> Logger {
     }
 
     /// Initialise a Logger
-    pub fn create() {
+    pub fn register() {
         let _logger = Logger::new();
     }
 
@@ -187,6 +189,7 @@ impl Log for Logger {
     }
 
     fn log(&self, record: &Record) {
+        dbg!("Logger::log:");
         let (mod_name, mod_tag) = if let Some(mod_path) = record.module_path() {
             if let Some(ref captures) = self.module_re.captures(mod_path) {
                 (
