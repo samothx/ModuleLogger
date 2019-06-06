@@ -229,6 +229,8 @@ impl<'a> Logger {
             }
         }
 
+        guarded_params.set_color(log_config.is_color());
+
         Ok(())
     }
 }
@@ -264,7 +266,7 @@ impl Log for Logger {
         }
 
         if curr_level <= level {
-            let output = format!(
+            let mut output = format!(
                 "{} {:<5} [{}] {}\n",
                 Local::now().format("%Y-%m-%d %H:%M:%S"),
                 record.level().to_string(),
@@ -272,13 +274,15 @@ impl Log for Logger {
                 record.args()
             );
 
-            let output = match curr_level {
-                Level::Error => format!("{}", output.red()),
-                Level::Warn => format!("{}", output.yellow()),
-                Level::Info => format!("{}", output.green()),
-                Level::Debug => format!("{}", output.cyan()),
-                Level::Trace => format!("{}", output.blue()),
-            };
+            if guarded_params.is_color() {
+                output = match curr_level {
+                    Level::Error => format!("{}", output.red()),
+                    Level::Warn => format!("{}", output.yellow()),
+                    Level::Info => format!("{}", output.green()),
+                    Level::Debug => format!("{}", output.cyan()),
+                    Level::Trace => format!("{}", output.blue()),
+                };
+            }
 
             let _res = match guarded_params.get_log_dest() {
                 LogDestination::Stderr => stderr().write(output.as_bytes()),

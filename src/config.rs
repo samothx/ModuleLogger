@@ -21,6 +21,7 @@ struct LogConfigFile {
     mod_level: Option<HashMap<String, String>>,
     log_dest: Option<String>,
     log_stream: Option<PathBuf>,
+    color: Option<bool>,
     // TODO: allow to configure buffer max, implement ring buffer for log
 }
 
@@ -29,6 +30,7 @@ pub struct LogConfig {
     mod_level: HashMap<String, Level>,
     log_dest: LogDestination,
     log_stream: Option<PathBuf>,
+    color: bool,
 }
 
 impl<'a> LogConfig {
@@ -55,6 +57,10 @@ impl<'a> LogConfig {
     pub fn get_log_stream(&'a self) -> &'a Option<PathBuf> {
         &self.log_stream
     }
+
+    pub fn is_color(&self) -> bool {
+        self.color
+    }
 }
 
 pub struct LogConfigBuilder {
@@ -69,6 +75,7 @@ impl<'a> LogConfigBuilder {
                 mod_level: HashMap::new(),
                 log_dest: DEFAULT_LOG_DEST,
                 log_stream: None,
+                color: true,
             },
         }
     }
@@ -131,6 +138,10 @@ impl<'a> LogConfigBuilder {
                 }
             }
             // TODO: read params for future ring buffer size
+        }
+
+        if let Some(color) = cfg_file.color {
+            self.inner.color = color;
         }
 
         Ok(self)
