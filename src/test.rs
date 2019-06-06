@@ -5,9 +5,28 @@ use std::io::{BufWriter, Write};
 use ::mod_logger::{Level, LogDestination, Logger, NO_STREAM};
 
 mod test_mod {
-    use log::warn;
+    use log::{trace,debug, info, warn, error};
+
+    mod test_test {
+        use log::{trace,debug, info, warn, error};
+
+        pub fn test_func() {
+            trace!("test_func: This is a test at trace level");
+            debug!("test_func: This is a test at debug level");
+            info!("test_func: This is a test at info level");
+            warn!("test_func: This is a test  at warn level");
+            error!("test_func: This is a test  at error level");
+        }
+
+    }
+
     pub fn test_func() {
-        warn!("test_func: This is a test_func");
+        trace!("test_func: This is a test at trace level");
+        debug!("test_func: This is a test at debug level");
+        info!("test_func: This is a test at info level");
+        warn!("test_func: This is a test  at warn level");
+        error!("test_func: This is a test  at error level");
+        test_test::test_func()
     }
 }
 

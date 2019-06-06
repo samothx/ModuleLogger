@@ -73,9 +73,13 @@ impl<'a> Logger {
             // looks like we only just created it
             // look for LOG_CONFIG in ENV
             if let Ok(config_path) = env::var("LOG_CONFIG") {
+                dbg!(&config_path);
                 match LogConfig::builder().from_file(config_path) {
                     Ok(ref log_config) => match logger.int_set_log_config(log_config.build()) {
-                        Ok(_res) => (),
+                        Ok(_res) => {
+                            dbg!("applied log config");
+                            ()
+                        },
                         Err(why) => {
                             dbg!(why);
                         }

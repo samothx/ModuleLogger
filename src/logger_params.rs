@@ -5,6 +5,7 @@ use std::io::{stderr, stdout, Write};
 
 use super::{LogError, LogErrorKind, DEFAULT_LOG_DEST};
 
+
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub enum LogDestination {
     Stdout,
@@ -116,12 +117,35 @@ impl<'a> LoggerParams {
     }
 
     pub fn get_mod_level(&'a self, module: &str) -> Option<&'a Level> {
+        let mut mod_path = module;
+
+        loop {
+            if let Some(ref level) = self.mod_level.get(mod_path) {
+                return Some(level)
+            }
+            if let Some(index) = mod_path.rfind("::") {
+                let (mod_new, _dumm) = mod_path.split_at(index);
+                mod_path = mod_new;
+            } else {
+                return None;
+            }
+        }
+    }
+/*
         if let Some(ref level) = self.mod_level.get(module) {
             Some(level)
         } else {
+            let mut mod_path = module.clone();
+            while let Some(index) = mod_path.rfind("::")  {
+                let (mod_path, _dummy) = mod_path.split_at(index);
+                if let Some(ref level) = self.mod_level.get(mod_path) {
+                    return Some(level);
+                }
+            }
             None
         }
     }
+*/
 
     pub fn set_mod_level(&'a mut self, module: &str, level: &Level) -> &'a Level {
         self.mod_level.insert(String::from(module), level.clone());
