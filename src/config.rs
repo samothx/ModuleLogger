@@ -75,7 +75,7 @@ impl<'a> LogConfigBuilder {
                 mod_level: HashMap::new(),
                 log_dest: DEFAULT_LOG_DEST,
                 log_stream: None,
-                color: true,
+                color: false,
             },
         }
     }
