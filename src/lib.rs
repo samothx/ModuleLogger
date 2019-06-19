@@ -4,12 +4,13 @@ use failure::ResultExt;
 use log::{Log, Metadata, Record};
 use regex::Regex;
 use std::env;
-use std::fs::OpenOptions;
+use std::fs::{OpenOptions, File};
 use std::io::{stderr, stdout, BufWriter, Write};
 use std::mem;
 use std::sync::{Arc, Mutex, Once, ONCE_INIT}; //, BufWriter};
 mod log_error;
 use log_error::{LogErrCtx, LogError, LogErrorKind};
+use std::path::{Path};
 
 pub mod config;
 pub use config::LogConfig;
@@ -169,6 +170,34 @@ impl<'a> Logger {
         logger.flush();
         let mut guarded_params = logger.inner.lock().unwrap();
         guarded_params.set_log_dest(dest, stream)
+    }
+
+    pub fn set_log_file( log_dest: &LogDestination, log_file: &Path, ) -> Result<(),LogError> {
+        let dest =
+            if log_dest.is_stdout() {
+                LogDestination::StreamStdout
+            } else if log_dest.is_stderr() {
+                LogDestination::StreamStderr
+            } else {
+                LogDestination::Stream
+            };
+
+        let mut stream = BufWriter::new(File::create(log_file)
+            .context(LogErrCtx::from_remark(LogErrorKind::Upstream, &format!("Failed to create file: '{}'", log_file.display())))?);
+
+        let logger = Logger::new();
+        let _res = logger.flush();
+
+        let mut guarded_params = logger.inner.lock().unwrap();
+        let buffer = guarded_params.retrieve_log_buffer();
+
+        if let Some(buffer) = buffer {
+            let _res = stream.write_all(buffer.as_slice());
+            let _res = stream.flush();
+        }
+
+        let mut guarded_params = logger.inner.lock().unwrap();
+        guarded_params.set_log_dest(&dest, Some(stream))
     }
 
     #[doc = "Retrieve the current log destination"]
