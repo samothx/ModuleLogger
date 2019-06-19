@@ -90,7 +90,7 @@ impl<'a> LoggerParams {
             max_level: log_level,
             mod_level: HashMap::new(),
             initialised: false,
-            color: true,
+            color: false,
         }
     }
 
