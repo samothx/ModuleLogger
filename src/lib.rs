@@ -183,6 +183,13 @@ impl<'a> Logger {
         Logger::new().int_set_log_config(log_config)
     }
 
+    pub fn set_color(color: bool) {
+        let logger = Logger::new();
+        let mut guarded_params = logger.inner.lock().unwrap();
+        guarded_params.set_color(color)
+    }
+
+
     fn int_set_log_config(&self, log_config: &LogConfig) -> Result<(), LogError> {
         let mut guarded_params = self.inner.lock().unwrap();
         let last_max_level = guarded_params.get_max_level().clone();
