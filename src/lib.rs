@@ -192,8 +192,10 @@ impl<'a> Logger {
         let buffer = guarded_params.retrieve_log_buffer();
 
         if let Some(buffer) = buffer {
-            let _res = stream.write_all(buffer.as_slice());
-            let _res = stream.flush();
+            stream.write_all(buffer.as_slice())
+                .context(LogErrCtx::from_remark(LogErrorKind::Upstream, &format!("Failed to write buffers to file: '{}'", log_file.display())))?;
+            stream.flush()
+                .context(LogErrCtx::from_remark(LogErrorKind::Upstream, &format!("Failed to flush buffers to file: '{}'", log_file.display())))?;
         }
 
         let mut guarded_params = logger.inner.lock().unwrap();
