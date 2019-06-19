@@ -198,7 +198,6 @@ impl<'a> Logger {
                 .context(LogErrCtx::from_remark(LogErrorKind::Upstream, &format!("Failed to flush buffers to file: '{}'", log_file.display())))?;
         }
 
-        let mut guarded_params = logger.inner.lock().unwrap();
         guarded_params.set_log_dest(&dest, Some(stream))
     }
 
