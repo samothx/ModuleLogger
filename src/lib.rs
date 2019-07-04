@@ -172,7 +172,7 @@ impl<'a> Logger {
         guarded_params.set_log_dest(dest, stream)
     }
 
-    pub fn set_log_file( log_dest: &LogDestination, log_file: &Path, ) -> Result<(),LogError> {
+    pub fn set_log_file( log_dest: &LogDestination, log_file: &Path, buffered: bool) -> Result<(),LogError> {
         let dest =
             if log_dest.is_stdout() {
                 LogDestination::StreamStdout
@@ -182,8 +182,13 @@ impl<'a> Logger {
                 LogDestination::Stream
             };
 
-        let mut stream = BufWriter::new(File::create(log_file)
-            .context(LogErrCtx::from_remark(LogErrorKind::Upstream, &format!("Failed to create file: '{}'", log_file.display())))?);
+        let mut stream: Box<Write + Send> = if buffered {
+            Box::new(BufWriter::new(File::create(log_file)
+                .context(LogErrCtx::from_remark(LogErrorKind::Upstream, &format!("Failed to create file: '{}'", log_file.display())))?))
+        } else {
+            Box::new(File::create(log_file)
+                .context(LogErrCtx::from_remark(LogErrorKind::Upstream, &format!("Failed to create file: '{}'", log_file.display())))?)
+        };
 
         let logger = Logger::new();
         let _res = logger.flush();
@@ -363,6 +368,8 @@ impl Log for Logger {
                     stderr().write(output.as_bytes())
                 }
             };
+
+
             ()
         }
     }
