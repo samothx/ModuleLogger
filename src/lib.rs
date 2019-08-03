@@ -247,7 +247,6 @@ impl<'a> Logger {
                         cfg_log_dest,
                         Some(BufWriter::new(
                             OpenOptions::new()
-                                .write(true)
                                 .append(true)
                                 .create(true)
                                 .open(log_stream)
