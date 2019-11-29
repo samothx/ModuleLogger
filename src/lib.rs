@@ -50,7 +50,8 @@ impl<'a> Logger {
     /// Any of the static functions will initialise a Logger instance
     fn new() -> Logger {
         static mut LOGGER: *const Logger = 0 as *const Logger;
-        static ONCE: Once = ONCE_INIT;
+        static ONCE: Once = Once::new();
+
         // dbg!("Logger::new: entered");
 
         let logger = unsafe {
