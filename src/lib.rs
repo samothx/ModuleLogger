@@ -7,7 +7,7 @@ use std::env;
 use std::fs::{OpenOptions, File};
 use std::io::{stderr, stdout, BufWriter, Write};
 use std::mem;
-use std::sync::{Arc, Mutex, Once, ONCE_INIT}; //, BufWriter};
+use std::sync::{Arc, Mutex, Once, }; //, BufWriter};
 mod log_error;
 use log_error::{LogErrCtx, LogError, LogErrorKind};
 use std::path::{Path};
@@ -24,7 +24,7 @@ pub(crate) const DEFAULT_LOG_LEVEL: Level = Level::Warn;
 // cannot be STREAM !!
 pub(crate) const DEFAULT_LOG_DEST: LogDestination = LogDestination::Stderr;
 
-pub const NO_STREAM: Option<Box<'static + Write + Send>> = None;
+pub const NO_STREAM: Option<Box<dyn 'static + Write + Send>> = None;
 
 pub use log::Level;
 
@@ -183,7 +183,7 @@ impl<'a> Logger {
                 LogDestination::Stream
             };
 
-        let mut stream: Box<Write + Send> = if buffered {
+        let mut stream: Box<dyn Write + Send> = if buffered {
             Box::new(BufWriter::new(File::create(log_file)
                 .context(LogErrCtx::from_remark(LogErrorKind::Upstream, &format!("Failed to create file: '{}'", log_file.display())))?))
         } else {

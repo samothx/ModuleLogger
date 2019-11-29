@@ -71,7 +71,7 @@ impl LogDestination {
 
 pub(crate) struct LoggerParams {
     log_dest: LogDestination,
-    log_stream: Option<Box<Write + Send>>,
+    log_stream: Option<Box<dyn Write + Send>>,
     log_buffer: Option<Vec<u8>>,
     default_level: Level,
     mod_level: HashMap<String, Level>,
@@ -196,7 +196,7 @@ impl<'a> LoggerParams {
         &self.log_dest
     }
 
-    pub fn get_log_stream(&mut self) -> &mut Option<Box<'static + Write + Send>> {
+    pub fn get_log_stream(&mut self) -> &mut Option<Box<dyn 'static + Write + Send>> {
         &mut self.log_stream
     }
 
