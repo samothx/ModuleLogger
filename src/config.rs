@@ -4,8 +4,15 @@ use std::collections::HashMap;
 use std::fs::read_to_string;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+/*use std::fmt;
 
+use serde::{
+    de::{self, Unexpected},
+    Deserialize, Deserializer,
+};
+*/
 use serde::Deserialize;
+
 use serde_yaml;
 
 use crate::{
@@ -14,6 +21,38 @@ use crate::{
 };
 
 // TODO: create log config builder and initialise Logger with config object, instead of using complex parameters for Logger::initialise
+
+
+/* 
+// TODO: try to automatically deserialze Levels - problem is wrapped in Option / Hashmap
+struct DeserializeLevelVisitor;
+
+impl<'de> de::Visitor<'de> for DeserializeLevelVisitor {
+    type Value = Level;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a string")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        match Level::from_str(v) {
+            Ok(val) => Ok(val),
+            Err(_why) => Err(E::invalid_value(Unexpected::Str(v), &self)),
+        }
+    }
+}
+
+fn deserialize_level<'de, D>(deserializer: D) -> Result<Level, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    deserializer.deserialize_any(DeserializeLevelVisitor)
+}
+*/
+
 
 #[derive(Debug, Deserialize)]
 struct LogConfigFile {
@@ -68,7 +107,7 @@ pub struct LogConfigBuilder {
 }
 
 impl<'a> LogConfigBuilder {
-    fn new() -> LogConfigBuilder {
+    pub fn new() -> LogConfigBuilder {
         LogConfigBuilder {
             inner: LogConfig {
                 default_level: DEFAULT_LOG_LEVEL,
@@ -82,9 +121,8 @@ impl<'a> LogConfigBuilder {
 
     #[doc = "Create LogConfig from file"]
     pub fn from_file<P: AsRef<Path>>(
-        &'a mut self,
         filename: P,
-    ) -> Result<&'a mut LogConfigBuilder, LogError> {
+    ) -> Result<LogConfigBuilder, LogError> {
         trace!("from_file: entered");
         let config_path = filename.as_ref();
 
@@ -102,8 +140,10 @@ impl<'a> LogConfigBuilder {
                 "failed to deserialze config from yaml",
             ))?;
 
+        let mut builder = LogConfigBuilder::new();
+
         if let Some(ref level_str) = cfg_file.default_level {
-            self.inner.default_level =
+            builder.inner.default_level =
                 Level::from_str(level_str).context(LogErrCtx::from_remark(
                     LogErrorKind::InvParam,
                     &format!("Invalid log level: '{}'", level_str),
@@ -112,7 +152,7 @@ impl<'a> LogConfigBuilder {
 
         if let Some(ref mod_level) = cfg_file.mod_level {
             for (mod_name, mod_level) in mod_level {
-                self.inner.mod_level.insert(
+                builder.inner.mod_level.insert(
                     mod_name.clone(),
                     Level::from_str(mod_level).context(LogErrCtx::from_remark(
                         LogErrorKind::InvParam,
@@ -126,12 +166,12 @@ impl<'a> LogConfigBuilder {
             let dest = LogDestination::from_str(dest_str)?;
             if dest.is_stream_dest() {
                 if let Some(stream) = cfg_file.log_stream {
-                    self.inner.log_stream = Some(stream)
+                    builder.inner.log_stream = Some(stream)
                 } else {
                     return Err(LogError::from_remark(
                         LogErrorKind::InvParam,
                         &format!(
-                            "Missing log stream paratmeter for log destination {:?}",
+                            "Missing log stream parameter for log destination {:?}",
                             dest
                         ),
                     ));
@@ -141,10 +181,10 @@ impl<'a> LogConfigBuilder {
         }
 
         if let Some(color) = cfg_file.color {
-            self.inner.color = color;
+            builder.inner.color = color;
         }
 
-        Ok(self)
+        Ok(builder)
     }
 
     #[doc = "Set Default Log Level"]

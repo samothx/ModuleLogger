@@ -27,6 +27,7 @@ pub(crate) const DEFAULT_LOG_DEST: LogDestination = LogDestination::Stderr;
 pub const NO_STREAM: Option<Box<dyn 'static + Write + Send>> = None;
 
 pub use log::Level;
+use crate::config::LogConfigBuilder;
 
 // TODO: implement size limit for memory buffer
 // TODO: Drop initialise functions and rather use a set_config function that can repeatedly reset the configuration
@@ -75,19 +76,18 @@ impl<'a> Logger {
             // looks like we only just created it
             // look for LOG_CONFIG in ENV
             if let Ok(config_path) = env::var("LOG_CONFIG") {
-                dbg!(&config_path);
-                match LogConfig::builder().from_file(config_path) {
+                match LogConfigBuilder::from_file(&config_path) {
                     Ok(ref log_config) => match logger.int_set_log_config(log_config.build()) {
                         Ok(_res) => {
                             dbg!("applied log config");
                             ()
                         },
                         Err(why) => {
-                            dbg!(why);
+                            dbg!("Failed to apply log config from file: '{}', error: {:?}", config_path, why);
                         }
                     },
                     Err(why) => {
-                        dbg!(why);
+                        dbg!("Failed to read log config from file: '{}', error: {:?}", config_path, why);
                     }
                 }
             }
