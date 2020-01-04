@@ -257,11 +257,16 @@ impl<'a> LoggerParams {
         } else if dest.is_buffer_dest() {
             self.log_dest = dest.clone();
             self.log_stream = None;
-            self.log_buffer = Some(Vec::new());
+            if self.log_buffer.is_none() {
+                self.log_buffer = Some(Vec::new());
+            }
             Ok(())
         } else {
             self.log_stream = None;
             self.log_dest = dest.clone();
+            if self.log_buffer.is_some() {
+                self.log_buffer = None;
+            }
             Ok(())
         }
     }

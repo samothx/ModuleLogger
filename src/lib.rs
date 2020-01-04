@@ -79,7 +79,7 @@ impl<'a> Logger {
                 match LogConfigBuilder::from_file(&config_path) {
                     Ok(ref log_config) => match logger.int_set_log_config(log_config.build()) {
                         Ok(_res) => {
-                            dbg!("applied log config");
+                            dbg!("applied log config",);
                             ()
                         },
                         Err(why) => {
@@ -368,7 +368,6 @@ impl Log for Logger {
                     stderr().write(output.as_bytes())
                 }
             };
-
 
             ()
         }
