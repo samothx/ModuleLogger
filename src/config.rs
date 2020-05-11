@@ -23,37 +23,6 @@ use crate::{
 // TODO: create log config builder and initialise Logger with config object, instead of using complex parameters for Logger::initialise
 
 
-/* 
-// TODO: try to automatically deserialze Levels - problem is wrapped in Option / Hashmap
-struct DeserializeLevelVisitor;
-
-impl<'de> de::Visitor<'de> for DeserializeLevelVisitor {
-    type Value = Level;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a string")
-    }
-
-    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-    where
-        E: de::Error,
-    {
-        match Level::from_str(v) {
-            Ok(val) => Ok(val),
-            Err(_why) => Err(E::invalid_value(Unexpected::Str(v), &self)),
-        }
-    }
-}
-
-fn deserialize_level<'de, D>(deserializer: D) -> Result<Level, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    deserializer.deserialize_any(DeserializeLevelVisitor)
-}
-*/
-
-
 #[derive(Debug, Deserialize)]
 struct LogConfigFile {
     default_level: Option<String>,
@@ -78,8 +47,8 @@ impl<'a> LogConfig {
     }
 
     #[doc = "Get Default Log Level"]
-    pub fn get_default_level(&'a self) -> &'a Level {
-        &self.default_level
+    pub fn get_default_level(&'a self) -> Level {
+        self.default_level
     }
 
     #[doc = "Get Module Log Levels"]
@@ -120,9 +89,7 @@ impl<'a> LogConfigBuilder {
     }
 
     #[doc = "Create LogConfig from file"]
-    pub fn from_file<P: AsRef<Path>>(
-        filename: P,
-    ) -> Result<LogConfigBuilder, LogError> {
+    pub fn from_file<P: AsRef<Path>>(filename: P) -> Result<LogConfigBuilder, LogError> {
         trace!("from_file: entered");
         let config_path = filename.as_ref();
 
@@ -224,4 +191,10 @@ impl<'a> LogConfigBuilder {
         &self.inner
     }
     // TODO: implement setters for all parameters
+}
+
+impl Default for LogConfigBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }

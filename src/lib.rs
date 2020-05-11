@@ -4,13 +4,13 @@ use failure::ResultExt;
 use log::{Log, Metadata, Record};
 use regex::Regex;
 use std::env;
-use std::fs::{OpenOptions, File};
+use std::fs::{File, OpenOptions};
 use std::io::{stderr, stdout, BufWriter, Write};
 use std::mem;
-use std::sync::{Arc, Mutex, Once, }; //, BufWriter};
+use std::sync::{Arc, Mutex, Once}; //, BufWriter};
 mod log_error;
 use log_error::{LogErrCtx, LogError, LogErrorKind};
-use std::path::{Path};
+use std::path::Path;
 
 pub mod config;
 pub use config::LogConfig;
@@ -26,8 +26,8 @@ pub(crate) const DEFAULT_LOG_DEST: LogDestination = LogDestination::Stderr;
 
 pub const NO_STREAM: Option<Box<dyn 'static + Write + Send>> = None;
 
-pub use log::Level;
 use crate::config::LogConfigBuilder;
+pub use log::Level;
 
 // TODO: implement size limit for memory buffer
 // TODO: Drop initialise functions and rather use a set_config function that can repeatedly reset the configuration
@@ -80,14 +80,21 @@ impl<'a> Logger {
                     Ok(ref log_config) => match logger.int_set_log_config(log_config.build()) {
                         Ok(_res) => {
                             dbg!("applied log config",);
-                            ()
-                        },
+                        }
                         Err(why) => {
-                            dbg!("Failed to apply log config from file: '{}', error: {:?}", config_path, why);
+                            dbg!(
+                                "Failed to apply log config from file: '{}', error: {:?}",
+                                config_path,
+                                why
+                            );
                         }
                     },
                     Err(why) => {
-                        dbg!("Failed to read log config from file: '{}', error: {:?}", config_path, why);
+                        dbg!(
+                            "Failed to read log config from file: '{}', error: {:?}",
+                            config_path,
+                            why
+                        );
                     }
                 }
             }
@@ -127,13 +134,13 @@ impl<'a> Logger {
 
     /// Initialise a Logger with the given default log_level or modify the default log level of the
     /// existing logger
-    pub fn set_default_level(log_level: &Level) {
+    pub fn set_default_level(log_level: Level) {
         let logger = Logger::new();
         let mut guarded_params = logger.inner.lock().unwrap();
-        let last_max_level = guarded_params.get_max_level().clone();
+        let last_max_level = *guarded_params.get_max_level();
         let max_level = guarded_params.set_default_level(log_level);
 
-        if &last_max_level != max_level {
+        if last_max_level != max_level {
             log::set_max_level(max_level.to_level_filter());
         }
     }
@@ -141,16 +148,16 @@ impl<'a> Logger {
     /// Retrieve the default level of the logger
     pub fn get_default_level(&self) -> Level {
         let guarded_params = self.inner.lock().unwrap();
-        guarded_params.get_default_level().clone()
+        guarded_params.get_default_level()
     }
 
     #[doc = "Modify the log level for a module"]
-    pub fn set_mod_level(module: &str, log_level: &Level) {
+    pub fn set_mod_level(module: &str, log_level: Level) {
         let logger = Logger::new();
         let mut guarded_params = logger.inner.lock().unwrap();
-        let last_max_level = guarded_params.get_max_level().clone();
+        let last_max_level = *guarded_params.get_max_level();
         let max_level = guarded_params.set_mod_level(module, log_level);
-        if &last_max_level != max_level {
+        if last_max_level != max_level {
             log::set_max_level(max_level.to_level_filter());
         }
     }
@@ -173,35 +180,50 @@ impl<'a> Logger {
         guarded_params.set_log_dest(dest, stream)
     }
 
-    pub fn set_log_file( log_dest: &LogDestination, log_file: &Path, buffered: bool) -> Result<(),LogError> {
-        let dest =
-            if log_dest.is_stdout() {
-                LogDestination::StreamStdout
-            } else if log_dest.is_stderr() {
-                LogDestination::StreamStderr
-            } else {
-                LogDestination::Stream
-            };
+    pub fn set_log_file(
+        log_dest: &LogDestination,
+        log_file: &Path,
+        buffered: bool,
+    ) -> Result<(), LogError> {
+        let dest = if log_dest.is_stdout() {
+            LogDestination::StreamStdout
+        } else if log_dest.is_stderr() {
+            LogDestination::StreamStderr
+        } else {
+            LogDestination::Stream
+        };
 
         let mut stream: Box<dyn Write + Send> = if buffered {
-            Box::new(BufWriter::new(File::create(log_file)
-                .context(LogErrCtx::from_remark(LogErrorKind::Upstream, &format!("Failed to create file: '{}'", log_file.display())))?))
+            Box::new(BufWriter::new(File::create(log_file).context(
+                LogErrCtx::from_remark(
+                    LogErrorKind::Upstream,
+                    &format!("Failed to create file: '{}'", log_file.display()),
+                ),
+            )?))
         } else {
-            Box::new(File::create(log_file)
-                .context(LogErrCtx::from_remark(LogErrorKind::Upstream, &format!("Failed to create file: '{}'", log_file.display())))?)
+            Box::new(File::create(log_file).context(LogErrCtx::from_remark(
+                LogErrorKind::Upstream,
+                &format!("Failed to create file: '{}'", log_file.display()),
+            ))?)
         };
 
         let logger = Logger::new();
-        let _res = logger.flush();
+        logger.flush();
 
         let mut guarded_params = logger.inner.lock().unwrap();
         let buffer = guarded_params.retrieve_log_buffer();
 
         if let Some(buffer) = buffer {
-            stream.write_all(buffer.as_slice())
-                .context(LogErrCtx::from_remark(LogErrorKind::Upstream, &format!("Failed to write buffers to file: '{}'", log_file.display())))?;
-            stream.flush()
-                .context(LogErrCtx::from_remark(LogErrorKind::Upstream, &format!("Failed to flush buffers to file: '{}'", log_file.display())))?;
+            stream
+                .write_all(buffer.as_slice())
+                .context(LogErrCtx::from_remark(
+                    LogErrorKind::Upstream,
+                    &format!("Failed to write buffers to file: '{}'", log_file.display()),
+                ))?;
+            stream.flush().context(LogErrCtx::from_remark(
+                LogErrorKind::Upstream,
+                &format!("Failed to flush buffers to file: '{}'", log_file.display()),
+            ))?;
         }
 
         guarded_params.set_log_dest(&dest, Some(stream))
@@ -225,10 +247,9 @@ impl<'a> Logger {
         guarded_params.set_color(color)
     }
 
-
     fn int_set_log_config(&self, log_config: &LogConfig) -> Result<(), LogError> {
         let mut guarded_params = self.inner.lock().unwrap();
-        let last_max_level = guarded_params.get_max_level().clone();
+        let last_max_level = *guarded_params.get_max_level();
 
         guarded_params.set_default_level(log_config.get_default_level());
 
@@ -241,8 +262,8 @@ impl<'a> Logger {
         let cfg_log_dest = log_config.get_log_dest();
         let stream_log = cfg_log_dest.is_stream_dest();
 
-        if cfg_log_dest != log_dest || stream_log == true {
-            if stream_log == true {
+        if cfg_log_dest != log_dest || stream_log {
+            if stream_log {
                 if let Some(log_stream) = log_config.get_log_stream() {
                     guarded_params.set_log_dest(
                         cfg_log_dest,
@@ -299,7 +320,7 @@ impl Log for Logger {
 
         //dbg!(format!("mod_name: {} - mod_tag: {}", mod_name, mod_tag));
 
-        let curr_level = &record.metadata().level();
+        let curr_level = record.metadata().level();
 
         let mut guarded_params = self.inner.lock().unwrap();
         let mut level = guarded_params.get_default_level();
@@ -368,8 +389,6 @@ impl Log for Logger {
                     stderr().write(output.as_bytes())
                 }
             };
-
-            ()
         }
     }
 

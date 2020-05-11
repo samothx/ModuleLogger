@@ -104,6 +104,6 @@ impl From<LogErrCtx> for LogError {
 
 impl From<Context<LogErrCtx>> for LogError {
     fn from(inner: Context<LogErrCtx>) -> LogError {
-        LogError { inner: inner }
+        LogError { inner }
     }
 }

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::io::{stderr, stdout, Write};
 
 use super::{LogError, LogErrorKind, DEFAULT_LOG_DEST};
-
+use failure::_core::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub enum LogDestination {
@@ -30,20 +30,6 @@ const DEST_TX: &[(&str, LogDestination); 8] = &[
 ];
 
 impl LogDestination {
-    pub fn from_str(dest: &str) -> Result<LogDestination, LogError> {
-        if let Some(pos) = DEST_TX
-            .iter()
-            .position(|val| val.0.eq_ignore_ascii_case(dest))
-        {
-            Ok(DEST_TX[pos].1.clone())
-        } else {
-            Err(LogError::from_remark(
-                LogErrorKind::InvParam,
-                &format!("Invalid log destination string encountered: '{}'", dest),
-            ))
-        }
-    }
-
     pub fn is_stream_dest(&self) -> bool {
         self == &LogDestination::Stream
             || self == &LogDestination::StreamStderr
@@ -66,6 +52,23 @@ impl LogDestination {
         self == &LogDestination::Stdout
             || self == &LogDestination::BufferStdout
             || self == &LogDestination::StreamStdout
+    }
+}
+
+impl FromStr for LogDestination {
+    type Err = LogError;
+    fn from_str(dest: &str) -> Result<Self, Self::Err> {
+        if let Some(pos) = DEST_TX
+            .iter()
+            .position(|val| val.0.eq_ignore_ascii_case(dest))
+        {
+            Ok(DEST_TX[pos].1.clone())
+        } else {
+            Err(LogError::from_remark(
+                LogErrorKind::InvParam,
+                &format!("Invalid log destination string encountered: '{}'", dest),
+            ))
+        }
     }
 }
 
@@ -107,8 +110,8 @@ impl<'a> LoggerParams {
         // TODO: implement
         let mut max_level = self.default_level;
         for level in self.mod_level.values() {
-            if &max_level < level {
-                max_level = level.clone();
+            if max_level < *level {
+                max_level = *level;
             }
         }
         self.max_level = max_level;
@@ -118,12 +121,12 @@ impl<'a> LoggerParams {
         &self.max_level
     }
 
-    pub fn get_mod_level(&'a self, module: &str) -> Option<&'a Level> {
+    pub fn get_mod_level(&'a self, module: &str) -> Option<Level> {
         let mut mod_path = module;
 
         loop {
             if let Some(ref level) = self.mod_level.get(mod_path) {
-                return Some(level)
+                return Some(**level);
             }
             if let Some(index) = mod_path.rfind("::") {
                 let (mod_new, _dumm) = mod_path.split_at(index);
@@ -133,39 +136,38 @@ impl<'a> LoggerParams {
             }
         }
     }
-/*
-        if let Some(ref level) = self.mod_level.get(module) {
-            Some(level)
-        } else {
-            let mut mod_path = module.clone();
-            while let Some(index) = mod_path.rfind("::")  {
-                let (mod_path, _dummy) = mod_path.split_at(index);
-                if let Some(ref level) = self.mod_level.get(mod_path) {
-                    return Some(level);
+    /*
+            if let Some(ref level) = self.mod_level.get(module) {
+                Some(level)
+            } else {
+                let mut mod_path = module.clone();
+                while let Some(index) = mod_path.rfind("::")  {
+                    let (mod_path, _dummy) = mod_path.split_at(index);
+                    if let Some(ref level) = self.mod_level.get(mod_path) {
+                        return Some(level);
+                    }
                 }
+                None
             }
-            None
         }
-    }
-*/
+    */
 
-    pub fn set_color(&'a mut self, color: bool)  {
+    pub fn set_color(&'a mut self, color: bool) {
         self.color = color;
     }
 
-    pub fn is_color(&'a mut self) -> bool  {
+    pub fn is_color(&'a mut self) -> bool {
         self.color
     }
 
-
-    pub fn set_mod_level(&'a mut self, module: &str, level: &Level) -> &'a Level {
+    pub fn set_mod_level(&'a mut self, module: &str, level: Level) -> Level {
         self.mod_level.insert(String::from(module), level.clone());
-        if level > &self.max_level {
-            self.max_level = level.clone();
-        } else if level < &self.max_level {
+        if level > self.max_level {
+            self.max_level = level;
+        } else if level < self.max_level {
             self.recalculate_max_level();
         }
-        &self.max_level
+        self.max_level
     }
 
     pub fn set_mod_config(&'a mut self, mod_config: &HashMap<String, Level>) -> &'a Level {
@@ -178,18 +180,18 @@ impl<'a> LoggerParams {
         &self.max_level
     }
 
-    pub fn set_default_level(&'a mut self, level: &Level) -> &'a Level {
-        self.default_level = level.clone();
-        if level > &self.max_level {
-            self.max_level = level.clone();
-        } else if level < &self.max_level {
+    pub fn set_default_level(&'a mut self, level: Level) -> Level {
+        self.default_level = level;
+        if level > self.max_level {
+            self.max_level = level;
+        } else if level < self.max_level {
             self.recalculate_max_level()
         }
-        &self.max_level
+        self.max_level
     }
 
-    pub fn get_default_level(&'a self) -> &'a Level {
-        &self.default_level
+    pub fn get_default_level(&'a self) -> Level {
+        self.default_level
     }
 
     pub fn get_log_dest(&'a self) -> &'a LogDestination {
@@ -227,10 +229,8 @@ impl<'a> LoggerParams {
 
         if self.log_dest.is_stderr() {
             let _res = stderr().flush();
-        } else {
-            if self.log_dest.is_stdout() {
-                let _res = stdout().flush();
-            }
+        } else if self.log_dest.is_stdout() {
+            let _res = stdout().flush();
         }
     }
 

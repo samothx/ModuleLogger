@@ -5,10 +5,10 @@ use std::io::{BufWriter, Write};
 use ::mod_logger::{Level, LogDestination, Logger, NO_STREAM};
 
 mod test_mod {
-    use log::{trace,debug, info, warn, error};
+    use log::{debug, error, info, trace, warn};
 
     mod test_test {
-        use log::{trace,debug, info, warn, error};
+        use log::{debug, error, info, trace, warn};
 
         pub fn test_func() {
             trace!("test_func: This is a test at trace level");
@@ -17,7 +17,6 @@ mod test_mod {
             warn!("test_func: This is a test  at warn level");
             error!("test_func: This is a test  at error level");
         }
-
     }
 
     pub fn test_func() {
@@ -31,11 +30,11 @@ mod test_mod {
 }
 
 fn main() {
-    Logger::set_default_level(&Level::Info);
+    Logger::set_default_level(Level::Info);
 
     info!("Logger initialized1");
 
-    Logger::set_default_level(&Level::Warn);
+    Logger::set_default_level(Level::Warn);
 
     info!("Logger initialized2");
     warn!("Logger initialized3");
@@ -61,7 +60,7 @@ fn main() {
     if let Some(buffer) = Logger::get_buffer() {
         File::create("log_buf.txt")
             .unwrap()
-            .write(buffer.as_ref())
+            .write_all(buffer.as_ref())
             .unwrap();
     }
 }
