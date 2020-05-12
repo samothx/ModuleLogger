@@ -1,3 +1,14 @@
+//! A consumer for the log crate
+//!
+//! The crate implements a logger that allows module-wise configuration of logging through
+//! configuration files or an API.
+//!
+//! Features
+//! * Log output can be written to stdout, stderr, to file or to a memory buffer.
+//! * Log output can be colored.
+//! * Log levels can be set by module using a configuration file or the API
+//!
+
 use chrono::Local;
 use colored::*;
 use failure::ResultExt;
@@ -32,13 +43,10 @@ pub use log::Level;
 // TODO: implement size limit for memory buffer
 // TODO: Drop initialise functions and rather use a set_config function that can repeatedly reset the configuration
 
-#[doc = " The mod_logger Log Consumer
-
-A log consumer for the Log crate.
-
-Implements a singleton holding the initialized LoggerParams
-Using any of the static functions of the Logger interface will initialise a Logger
-"]
+/// The Logger struct holds a singleton containing all relevant information.
+///
+/// struct Logger has a private constructor. It is used via its static interface (methods) which will
+/// instanciate a Logger or use an existing one.
 #[derive(Clone)]
 pub struct Logger {
     inner: Arc<Mutex<LoggerParams>>,
@@ -78,11 +86,9 @@ impl<'a> Logger {
             if let Ok(config_path) = env::var("LOG_CONFIG") {
                 match LogConfigBuilder::from_file(&config_path) {
                     Ok(ref log_config) => match logger.int_set_log_config(log_config.build()) {
-                        Ok(_res) => {
-                            dbg!("applied log config",);
-                        }
+                        Ok(_res) => (),
                         Err(why) => {
-                            dbg!(
+                            eprintln!(
                                 "Failed to apply log config from file: '{}', error: {:?}",
                                 config_path,
                                 why
@@ -90,7 +96,7 @@ impl<'a> Logger {
                         }
                     },
                     Err(why) => {
-                        dbg!(
+                        eprintln!(
                             "Failed to read log config from file: '{}', error: {:?}",
                             config_path,
                             why
@@ -304,7 +310,6 @@ impl Log for Logger {
     }
 
     fn log(&self, record: &Record) {
-        // dbg!("Logger::log:");
         let (mod_name, mod_tag) = if let Some(mod_path) = record.module_path() {
             if let Some(ref captures) = self.module_re.captures(mod_path) {
                 (
@@ -317,8 +322,6 @@ impl Log for Logger {
         } else {
             (String::from("undefined"), String::from("undefined"))
         };
-
-        //dbg!(format!("mod_name: {} - mod_tag: {}", mod_name, mod_tag));
 
         let curr_level = record.metadata().level();
 

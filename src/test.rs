@@ -50,11 +50,12 @@ fn main() {
 
     Logger::flush();
 
-    Logger::set_log_dest(&LogDestination::Buffer, NO_STREAM).unwrap();
+    Logger::set_log_dest(&LogDestination::BufferStderr, NO_STREAM).unwrap();
 
     info!("Logger initialized6");
     warn!("Logger initialized7");
 
+    Logger::set_default_level(Level::Warn);
     test_mod::test_func();
 
     if let Some(buffer) = Logger::get_buffer() {
@@ -63,4 +64,6 @@ fn main() {
             .write_all(buffer.as_ref())
             .unwrap();
     }
+
+
 }

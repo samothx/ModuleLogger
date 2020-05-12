@@ -2,7 +2,7 @@ log_level: 'trace'
 log_dest: 'Stderr'
 # log_dest: 'stream'
 # log_stream: 'debug.log'
-color: false
+color: true
 mod_level:
   'test_mod': 'debug'
   'test_mod::test_test': 'trace'
