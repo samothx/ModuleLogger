@@ -30,7 +30,7 @@ mod logger_params;
 pub use logger_params::LogDestination;
 use logger_params::LoggerParams;
 
-pub(crate) const DEFAULT_LOG_LEVEL: Level = Level::Warn;
+pub(crate) const DEFAULT_LOG_LEVEL: Level = Level::Info;
 
 // cannot be STREAM !!
 pub(crate) const DEFAULT_LOG_DEST: LogDestination = LogDestination::Stderr;
@@ -86,7 +86,9 @@ impl<'a> Logger {
             if let Ok(config_path) = env::var("LOG_CONFIG") {
                 match LogConfigBuilder::from_file(&config_path) {
                     Ok(ref log_config) => match logger.int_set_log_config(log_config.build()) {
-                        Ok(_res) => (),
+                        Ok(_res) => {
+                            println!("Successfully applied log config from '{}'", config_path);
+                        },
                         Err(why) => {
                             eprintln!(
                                 "Failed to apply log config from file: '{}', error: {:?}",
