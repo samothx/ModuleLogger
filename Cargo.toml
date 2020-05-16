@@ -1,11 +1,17 @@
 [package]
 name = "mod_logger"
 version = "0.6.0"
-authors = ["Thomas <thomas@etnur.net>"]
+authors = ["Thomas Runte <thomas@etnur.net>"]
 edition = "2018"
-
+description = "A consumer for the log crate that allows module wise configuration."
+readme = "README.md"
+repository = "https://github.com/samothx/ModuleLogger"
+license = "MIT OR Apache-2.0"
+keywords = ["Logging"]
+categories = ["development-tools::debugging"]
 [lib]
 path = "src/lib.rs"
+publish = true
 
 [[bin]]
 name = "test"
