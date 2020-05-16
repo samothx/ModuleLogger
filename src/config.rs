@@ -61,6 +61,7 @@ struct LogConfigFile {
     log_dest: Option<String>,
     log_stream: Option<PathBuf>,
     color: Option<bool>,
+    no_mod: Option<bool>,
     // TODO: allow to configure buffer max, implement ring buffer for log
 }
 
@@ -70,6 +71,7 @@ pub struct LogConfig {
     log_dest: LogDestination,
     log_stream: Option<PathBuf>,
     color: bool,
+    no_mod: bool,
 }
 
 impl<'a> LogConfig {
@@ -100,6 +102,8 @@ impl<'a> LogConfig {
     pub fn is_color(&self) -> bool {
         self.color
     }
+
+    pub fn is_no_mod(&self) -> bool { self.color }
 }
 
 pub struct LogConfigBuilder {
@@ -115,6 +119,7 @@ impl<'a> LogConfigBuilder {
                 log_dest: DEFAULT_LOG_DEST,
                 log_stream: None,
                 color: false,
+                no_mod: false,
             },
         }
     }
@@ -184,6 +189,10 @@ impl<'a> LogConfigBuilder {
             builder.inner.color = color;
         }
 
+        if let Some(no_mod) = cfg_file.no_mod {
+            builder.inner.no_mod = no_mod;
+        }
+
         Ok(builder)
     }
 
@@ -220,8 +229,14 @@ impl<'a> LogConfigBuilder {
         Ok(self)
     }
 
+    pub fn set_no_log(&'a mut self, val: bool) {
+        self.inner.no_mod = val;
+    }
+
     pub fn build(&'a self) -> &'a LogConfig {
         &self.inner
     }
+
+
     // TODO: implement setters for all parameters
 }

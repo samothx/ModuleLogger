@@ -225,6 +225,11 @@ impl<'a> Logger {
         guarded_params.set_color(color)
     }
 
+    pub fn set_no_mod(val: bool) {
+        let logger = Logger::new();
+        let mut guarded_params = logger.inner.lock().unwrap();
+        guarded_params.set_no_mod(val)
+    }
 
     fn int_set_log_config(&self, log_config: &LogConfig) -> Result<(), LogError> {
         let mut guarded_params = self.inner.lock().unwrap();
@@ -272,6 +277,7 @@ impl<'a> Logger {
         }
 
         guarded_params.set_color(log_config.is_color());
+        guarded_params.set_no_mod(log_config.is_no_mod());
 
         Ok(())
     }
@@ -308,13 +314,22 @@ impl Log for Logger {
         }
 
         if curr_level <= level {
-            let mut output = format!(
-                "{} {:<5} [{}] {}\n",
-                Local::now().format("%Y-%m-%d %H:%M:%S"),
-                record.level().to_string(),
-                &mod_name,
-                record.args()
-            );
+            let mut output = if guarded_params.is_no_mod() && (*curr_level == Level::Info) {
+                format!(
+                    "{} {:<5} {}\n",
+                    Local::now().format("%Y-%m-%d %H:%M:%S"),
+                    record.level().to_string(),
+                    record.args()
+                )
+            } else {
+                format!(
+                    "{} {:<5} [{}] {}\n",
+                    Local::now().format("%Y-%m-%d %H:%M:%S"),
+                    record.level().to_string(),
+                    &mod_name,
+                    record.args()
+                )
+            };
 
             if guarded_params.is_color() {
                 output = match curr_level {
