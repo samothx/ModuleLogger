@@ -72,7 +72,7 @@ impl<'a> LogConfig {
         self.color
     }
 
-    pub fn is_no_mod(&self) -> bool { self.color }
+    pub fn is_no_mod(&self) -> bool { self.no_mod }
 }
 
 pub struct LogConfigBuilder {
