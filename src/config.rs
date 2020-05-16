@@ -30,9 +30,10 @@ struct LogConfigFile {
     log_dest: Option<String>,
     log_stream: Option<PathBuf>,
     color: Option<bool>,
-    no_mod: Option<bool>,
+    brief_info: Option<bool>,
     // TODO: allow to configure buffer max, implement ring buffer for log
 }
+
 
 pub struct LogConfig {
     default_level: Level,
@@ -40,46 +41,42 @@ pub struct LogConfig {
     log_dest: LogDestination,
     log_stream: Option<PathBuf>,
     color: bool,
-    no_mod: bool,
+    brief_info: bool,
 }
 
+/// The logger configuration parameters
+/// Used in Logger::set_log_config
 impl<'a> LogConfig {
-    pub fn builder() -> LogConfigBuilder {
-        LogConfigBuilder::new()
-    }
-
-    #[doc = "Get Default Log Level"]
-    pub fn get_default_level(&'a self) -> Level {
+    pub(crate) fn get_default_level(&'a self) -> Level {
         self.default_level
     }
 
-    #[doc = "Get Module Log Levels"]
-    pub fn get_mod_level(&'a self) -> &'a HashMap<String, Level> {
+    pub(crate) fn get_mod_level(&'a self) -> &'a HashMap<String, Level> {
         &self.mod_level
     }
 
-    #[doc = "Get Log Destination"]
-    pub fn get_log_dest(&'a self) -> &'a LogDestination {
+    pub(crate) fn get_log_dest(&'a self) -> &'a LogDestination {
         &self.log_dest
     }
 
-    #[doc = "Get Log Stream for stream type Log Destinations"]
-    pub fn get_log_stream(&'a self) -> &'a Option<PathBuf> {
+    pub(crate) fn get_log_stream(&'a self) -> &'a Option<PathBuf> {
         &self.log_stream
     }
 
-    pub fn is_color(&self) -> bool {
+    pub(crate) fn is_color(&self) -> bool {
         self.color
     }
 
-    pub fn is_no_mod(&self) -> bool { self.no_mod }
+    pub(crate) fn is_brief_info(&self) -> bool { self.brief_info }
 }
 
 pub struct LogConfigBuilder {
     inner: LogConfig,
 }
 
+/// LogConfigBuilder helps creating a configuration for logger.
 impl<'a> LogConfigBuilder {
+    /// Create a new LogConfigBuilder with defaults for all config settings.
     pub fn new() -> LogConfigBuilder {
         LogConfigBuilder {
             inner: LogConfig {
@@ -88,12 +85,12 @@ impl<'a> LogConfigBuilder {
                 log_dest: DEFAULT_LOG_DEST,
                 log_stream: None,
                 color: false,
-                no_mod: false,
+                brief_info: false,
             },
         }
     }
 
-    #[doc = "Create LogConfig from file"]
+    /// Create LogConfigBuilder with initial values taken from a YAML config file and defaults
     pub fn from_file<P: AsRef<Path>>(filename: P) -> Result<LogConfigBuilder, LogError> {
         trace!("from_file: entered");
         let config_path = filename.as_ref();
@@ -156,33 +153,35 @@ impl<'a> LogConfigBuilder {
             builder.inner.color = color;
         }
 
-        if let Some(no_mod) = cfg_file.no_mod {
-            builder.inner.no_mod = no_mod;
+        if let Some(brief_info) = cfg_file.brief_info {
+            builder.inner.brief_info = brief_info;
         }
 
         Ok(builder)
     }
 
-    #[doc = "Set Default Log Level"]
+    /// Set the default log Level
     pub fn set_default_level(&'a mut self, level: Level) -> &'a mut LogConfigBuilder {
         self.inner.default_level = level;
         self
     }
 
-    #[doc = "Set Modue Log Level"]
+    /// Set the log level for a module
+    /// Format of module is <module>[::<submodule>[::<submodule>]]
     pub fn set_mod_level(&'a mut self, module: &str, level: Level) -> &'a mut LogConfigBuilder {
         let _dummy = self.inner.mod_level.insert(String::from(module), level);
         self
     }
 
-    #[doc = "Set Log Destination"]
+    /// Set log destination
+    /// For stream type destinations the file must be supplied
     pub fn set_log_dest(
         &'a mut self,
         dest: LogDestination,
-        stream: Option<&PathBuf>,
+        file: Option<&PathBuf>,
     ) -> Result<&'a mut LogConfigBuilder, LogError> {
         if dest.is_stream_dest() {
-            if let Some(stream) = stream {
+            if let Some(stream) = file {
                 self.inner.log_stream = Some(stream.clone());
             } else {
                 return Err(LogError::from_remark(
@@ -196,14 +195,21 @@ impl<'a> LogConfigBuilder {
         Ok(self)
     }
 
-    pub fn set_no_log(&'a mut self, val: bool) {
-        self.inner.no_mod = val;
+    /// Enable / disable brief info format.
+    /// Brief info displays info messages without the source module
+    pub fn set_brief_info(&'a mut self, val: bool) {
+        self.inner.brief_info = val;
     }
 
+    /// Enable / disable colored output
+    pub fn set_color(&'a mut self, val: bool) {
+        self.inner.color = val;
+    }
+
+    /// Build the configuration
     pub fn build(&'a self) -> &'a LogConfig {
         &self.inner
     }
-
 
     // TODO: implement setters for all parameters
 }

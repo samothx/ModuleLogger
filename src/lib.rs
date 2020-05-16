@@ -6,7 +6,30 @@
 //! Features
 //! * Log output can be written to stdout, stderr, to file or to a memory buffer.
 //! * Log output can be colored.
-//! * Log levels can be set by module using a configuration file or the API
+//! * Features can be set using a configuration file or the API
+//!
+//! The configuration file can be enabled by setting the environment variable ```LOG_CONFIG``` to the
+//! path of the file. The configuration is specified in YAML format and allows to set the following
+//! values. All values are optional.
+//!
+//! * default_level: The default log level, one of trace, debug, info, warn, error, defaults to info
+//! * mod_level: A list of module name and log level pairs
+//! * log_dest: One of stdout, stderr, stream, buffer, streamstdout, streamstderr, bufferstdout, bufferstderr.
+//! * log_stream: The log file name for stream variants of log_dest
+//! * color: one of ```true``` or ```false```
+//! * brief_info: one of ```true``` or ```false```
+//!
+//! Sample:
+//! ```yaml
+//! log_level: warn
+//! log_dest: streamstderr
+//! log_stream: debug.log
+//! color: true
+//! brief_info: true
+//! mod_level:
+//!   'test_mod': debug
+//!   'test_mod::test_test': trace
+//! ```
 //!
 
 use chrono::Local;
@@ -45,8 +68,8 @@ pub use log::Level;
 
 /// The Logger struct holds a singleton containing all relevant information.
 ///
-/// struct Logger has a private constructor. It is used via its static interface (methods) which will
-/// instanciate a Logger or use an existing one.
+/// struct Logger has a private constructor. It is used via its static interface which will
+/// instantiate a Logger or use an existing one.
 #[derive(Clone)]
 pub struct Logger {
     inner: Arc<Mutex<LoggerParams>>,
@@ -134,6 +157,7 @@ impl<'a> Logger {
         Logger::new().flush();
     }
 
+    /// create a default logger
     pub fn create() {
         let _logger = Logger::new();
     }
@@ -157,25 +181,25 @@ impl<'a> Logger {
         guarded_params.get_default_level()
     }
 
-    #[doc = "Modify the log level for a module"]
+    /// Modify the log level for a module
     pub fn set_mod_level(module: &str, log_level: Level) {
         let logger = Logger::new();
         let mut guarded_params = logger.inner.lock().unwrap();
         let last_max_level = *guarded_params.get_max_level();
-        let max_level = guarded_params.set_mod_level(module, &log_level);
+        let max_level = guarded_params.set_mod_level(module, log_level);
         if last_max_level != *max_level {
             log::set_max_level(max_level.to_level_filter());
         }
     }
 
-    #[doc = "Retrieve the current log buffer, if available"]
+    /// Retrieve the current log buffer, if available
     pub fn get_buffer() -> Option<Vec<u8>> {
         let logger = Logger::new();
         let mut guarded_params = logger.inner.lock().unwrap();
         guarded_params.retrieve_log_buffer()
     }
 
-    #[doc = "Set the log destination"]
+    /// Set the log destination
     pub fn set_log_dest<S: 'static + Write + Send>(
         dest: &LogDestination,
         stream: Option<S>,
@@ -186,6 +210,7 @@ impl<'a> Logger {
         guarded_params.set_log_dest(dest, stream)
     }
 
+    /// Set log destination  and log file.
     pub fn set_log_file(
         log_dest: &LogDestination,
         log_file: &Path,
@@ -235,28 +260,30 @@ impl<'a> Logger {
         guarded_params.set_log_dest(&dest, Some(stream))
     }
 
-    #[doc = "Retrieve the current log destination"]
+    /// Retrieve the current log destination
     pub fn get_log_dest() -> LogDestination {
         let logger = Logger::new();
         let guarded_params = logger.inner.lock().unwrap();
         guarded_params.get_log_dest().clone()
     }
 
-    #[doc = "Set the log configuration"]
+    /// Set the log configuration.
     pub fn set_log_config(log_config: &LogConfig) -> Result<(), LogError> {
         Logger::new().int_set_log_config(log_config)
     }
 
+    /// Enable / disable colored output
     pub fn set_color(color: bool) {
         let logger = Logger::new();
         let mut guarded_params = logger.inner.lock().unwrap();
         guarded_params.set_color(color)
     }
 
-    pub fn set_no_mod(val: bool) {
+    /// Enable / disable brief info messages
+    pub fn set_brief_info(val: bool) {
         let logger = Logger::new();
         let mut guarded_params = logger.inner.lock().unwrap();
-        guarded_params.set_no_mod(val)
+        guarded_params.set_brief_info(val)
     }
 
     fn int_set_log_config(&self, log_config: &LogConfig) -> Result<(), LogError> {
@@ -305,7 +332,7 @@ impl<'a> Logger {
         }
 
         guarded_params.set_color(log_config.is_color());
-        guarded_params.set_no_mod(log_config.is_no_mod());
+        guarded_params.set_brief_info(log_config.is_brief_info());
 
         Ok(())
     }
@@ -339,7 +366,7 @@ impl Log for Logger {
         }
 
         if curr_level <= level {
-            let mut output = if guarded_params.is_no_mod() && (curr_level == Level::Info) {
+            let mut output = if guarded_params.is_brief_info() && (curr_level == Level::Info) {
                 format!(
                     "{} {:<5} {}\n",
                     Local::now().format("%Y-%m-%d %H:%M:%S"),

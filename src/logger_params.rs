@@ -8,13 +8,21 @@ use failure::_core::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub enum LogDestination {
+    /// log to stdout
     Stdout,
+    /// log to stderr
     Stderr,
+    /// log to an output file
     Stream,
+    /// log to an output file and to stdout
     StreamStdout,
+    /// log to an output file and to stderr
     StreamStderr,
+    /// log to a memory buffer
     Buffer,
+    /// log to stdout and to a memory buffer
     BufferStdout,
+    /// log to stderr and to a memory buffer
     BufferStderr,
 }
 
@@ -80,7 +88,7 @@ pub(crate) struct LoggerParams {
     mod_level: HashMap<String, Level>,
     max_level: Level,
     color: bool,
-    no_mod: bool,
+    brief_info: bool,
     initialised: bool,
 }
 
@@ -95,7 +103,7 @@ impl<'a> LoggerParams {
             mod_level: HashMap::new(),
             initialised: false,
             color: false,
-            no_mod: false,
+            brief_info: false,
         }
     }
 
@@ -162,18 +170,18 @@ impl<'a> LoggerParams {
         self.color
     }
 
-    pub fn set_no_mod(&'a mut self, val: bool) {
-        self.no_mod = val;
+    pub fn set_brief_info(&'a mut self, val: bool) {
+        self.brief_info = val;
     }
-    pub fn is_no_mod(&'a mut self) -> bool  {
-        self.no_mod
+    pub fn is_brief_info(&'a mut self) -> bool  {
+        self.brief_info
     }
 
-    pub fn set_mod_level(&'a mut self, module: &str, level: &Level) -> &'a Level {
+    pub fn set_mod_level(&'a mut self, module: &str, level: Level) -> &'a Level {
         self.mod_level.insert(String::from(module), level.clone());
-        if level > &self.max_level {
-            self.max_level = *level;
-        } else if level < &self.max_level {
+        if level > self.max_level {
+            self.max_level = level;
+        } else if level < self.max_level {
             self.recalculate_max_level();
         }
         &self.max_level
