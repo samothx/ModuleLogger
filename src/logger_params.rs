@@ -80,6 +80,7 @@ pub(crate) struct LoggerParams {
     mod_level: HashMap<String, Level>,
     max_level: Level,
     color: bool,
+    no_mod: bool,
     initialised: bool,
 }
 
@@ -94,6 +95,7 @@ impl<'a> LoggerParams {
             mod_level: HashMap::new(),
             initialised: false,
             color: false,
+            no_mod: false,
         }
     }
 
@@ -160,14 +162,22 @@ impl<'a> LoggerParams {
         self.color
     }
 
-    pub fn set_mod_level(&'a mut self, module: &str, level: Level) -> Level {
+    pub fn set_no_mod(&'a mut self, val: bool) {
+        println!("logger_params: setting no_mod to {}", val);
+        self.no_mod = val;
+    }
+    pub fn is_no_mod(&'a mut self) -> bool  {
+        self.no_mod
+    }
+
+    pub fn set_mod_level(&'a mut self, module: &str, level: &Level) -> &'a Level {
         self.mod_level.insert(String::from(module), level.clone());
-        if level > self.max_level {
-            self.max_level = level;
-        } else if level < self.max_level {
+        if level > &self.max_level {
+            self.max_level = *level;
+        } else if level < &self.max_level {
             self.recalculate_max_level();
         }
-        self.max_level
+        &self.max_level
     }
 
     pub fn set_mod_config(&'a mut self, mod_config: &HashMap<String, Level>) -> &'a Level {
