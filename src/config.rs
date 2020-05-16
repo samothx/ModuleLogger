@@ -189,6 +189,7 @@ impl<'a> LogConfigBuilder {
             builder.inner.color = color;
         }
 
+        println!("from_file: checking no_mod {:?}", cfg_file.no_mod);
         if let Some(no_mod) = cfg_file.no_mod {
             println!("from_file: setting no_mod to {}", no_mod);
             builder.inner.no_mod = no_mod;
