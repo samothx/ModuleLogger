@@ -190,6 +190,7 @@ impl<'a> LogConfigBuilder {
         }
 
         if let Some(no_mod) = cfg_file.no_mod {
+            println!("from_file: setting no_mod to {}", no_mod);
             builder.inner.no_mod = no_mod;
         }
 

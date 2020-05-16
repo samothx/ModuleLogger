@@ -160,6 +160,7 @@ impl<'a> LoggerParams {
     }
 
     pub fn set_no_mod(&'a mut self, val: bool) {
+        println!("logger_params: setting no_mod to {}", val);
         self.no_mod = val;
     }
     pub fn is_no_mod(&'a mut self) -> bool  {
