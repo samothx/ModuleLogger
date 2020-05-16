@@ -86,9 +86,7 @@ impl<'a> Logger {
             if let Ok(config_path) = env::var("LOG_CONFIG") {
                 match LogConfigBuilder::from_file(&config_path) {
                     Ok(ref log_config) => match logger.int_set_log_config(log_config.build()) {
-                        Ok(_res) => {
-                            println!("Successfully applied log config from '{}'", config_path);
-                        },
+                        Ok(_res) => (),
                         Err(why) => {
                             eprintln!(
                                 "Failed to apply log config from file: '{}', error: {:?}",
