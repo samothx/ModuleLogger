@@ -74,6 +74,7 @@ pub use log::Level;
 pub struct Logger {
     inner: Arc<Mutex<LoggerParams>>,
     module_re: Regex,
+    exe_name: Option<String>,
 }
 
 impl<'a> Logger {
@@ -86,13 +87,23 @@ impl<'a> Logger {
 
         // dbg!("Logger::new: entered");
 
+        let exe_name = match env::current_exe() {
+            Ok(exe_name) => match exe_name.file_name() {
+                Some(exe_name) => match exe_name.to_str() {
+                    Some(exe_name) => Some(exe_name.to_owned()),
+                    None => None,
+                },
+                None => None,
+            },
+            Err(_why) => None,
+        };
+
         let logger = unsafe {
             ONCE.call_once(|| {
-                // Make it
-                //dbg!("call_once");
                 let singleton = Logger {
-                    module_re: Regex::new(r#"^[^:]+::(.*)$"#).unwrap(),
+                    module_re: Regex::new(r#"^([^:]+)::(.*)$"#).unwrap(),
                     inner: Arc::new(Mutex::new(LoggerParams::new(DEFAULT_LOG_LEVEL))),
+                    exe_name,
                 };
 
                 // Put it in the heap so it can outlive this call
@@ -113,16 +124,14 @@ impl<'a> Logger {
                         Err(why) => {
                             eprintln!(
                                 "Failed to apply log config from file: '{}', error: {:?}",
-                                config_path,
-                                why
+                                config_path, why
                             );
                         }
                     },
                     Err(why) => {
                         eprintln!(
                             "Failed to read log config from file: '{}', error: {:?}",
-                            config_path,
-                            why
+                            config_path, why
                         );
                     }
                 }
@@ -345,13 +354,21 @@ impl Log for Logger {
 
     fn log(&self, record: &Record) {
         let (mod_name, mod_tag) = if let Some(mod_path) = record.module_path() {
-            if let Some(ref captures) = self.module_re.captures(mod_path) {
-                (
-                    String::from(mod_path),
-                    String::from(captures.get(1).unwrap().as_str()),
-                )
+            if let Some(ref exe_name) = self.exe_name {
+                if let Some(ref captures) = self.module_re.captures(mod_path) {
+                    if captures.get(1).unwrap().as_str() == exe_name {
+                        (
+                            mod_path.to_owned(),
+                            captures.get(2).unwrap().as_str().to_owned(),
+                        )
+                    } else {
+                        (mod_path.to_owned(), mod_path.to_owned())
+                    }
+                } else {
+                    (mod_path.to_owned(), String::from("main"))
+                }
             } else {
-                (String::from(mod_path), String::from("main"))
+                (mod_path.to_owned(), mod_path.to_owned())
             }
         } else {
             (String::from("undefined"), String::from("undefined"))
