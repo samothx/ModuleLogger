@@ -365,7 +365,11 @@ impl Log for Logger {
                         (mod_path.to_owned(), mod_path.to_owned())
                     }
                 } else {
-                    (mod_path.to_owned(), String::from("main"))
+                    if mod_path == exe_name {
+                        (mod_path.to_owned(), String::from("main"))
+                    } else {
+                        (mod_path.to_owned(), mod_path.to_owned())
+                    }
                 }
             } else {
                 (mod_path.to_owned(), mod_path.to_owned())
