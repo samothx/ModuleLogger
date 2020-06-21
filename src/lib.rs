@@ -34,7 +34,6 @@
 
 use chrono::Local;
 use colored::*;
-use failure::ResultExt;
 use log::{Log, Metadata, Record};
 use regex::Regex;
 use std::env;
@@ -42,8 +41,8 @@ use std::fs::{File, OpenOptions};
 use std::io::{stderr, stdout, BufWriter, Write};
 use std::mem;
 use std::sync::{Arc, Mutex, Once}; //, BufWriter};
-mod log_error;
-use log_error::{LogErrCtx, LogError, LogErrorKind};
+mod error;
+use error::{Error, ErrorKind, Result};
 use std::path::Path;
 
 pub mod config;
@@ -61,6 +60,7 @@ pub(crate) const DEFAULT_LOG_DEST: LogDestination = LogDestination::Stderr;
 pub const NO_STREAM: Option<Box<dyn 'static + Write + Send>> = None;
 
 use crate::config::LogConfigBuilder;
+use crate::error::ToError;
 pub use log::Level;
 
 // TODO: implement size limit for memory buffer
@@ -212,7 +212,7 @@ impl<'a> Logger {
     pub fn set_log_dest<S: 'static + Write + Send>(
         dest: &LogDestination,
         stream: Option<S>,
-    ) -> Result<(), LogError> {
+    ) -> Result<()> {
         let logger = Logger::new();
         logger.flush();
         let mut guarded_params = logger.inner.lock().unwrap();
@@ -220,11 +220,7 @@ impl<'a> Logger {
     }
 
     /// Set log destination  and log file.
-    pub fn set_log_file(
-        log_dest: &LogDestination,
-        log_file: &Path,
-        buffered: bool,
-    ) -> Result<(), LogError> {
+    pub fn set_log_file(log_dest: &LogDestination, log_file: &Path, buffered: bool) -> Result<()> {
         let dest = if log_dest.is_stdout() {
             LogDestination::StreamStdout
         } else if log_dest.is_stderr() {
@@ -234,16 +230,16 @@ impl<'a> Logger {
         };
 
         let mut stream: Box<dyn Write + Send> = if buffered {
-            Box::new(BufWriter::new(File::create(log_file).context(
-                LogErrCtx::from_remark(
-                    LogErrorKind::Upstream,
-                    &format!("Failed to create file: '{}'", log_file.display()),
-                ),
-            )?))
+            Box::new(BufWriter::new(
+                File::create(log_file).upstream_with_context(&format!(
+                    "Failed to create file: '{}'",
+                    log_file.display()
+                ))?,
+            ))
         } else {
-            Box::new(File::create(log_file).context(LogErrCtx::from_remark(
-                LogErrorKind::Upstream,
-                &format!("Failed to create file: '{}'", log_file.display()),
+            Box::new(File::create(log_file).upstream_with_context(&format!(
+                "Failed to create file: '{}'",
+                log_file.display()
             ))?)
         };
 
@@ -256,13 +252,13 @@ impl<'a> Logger {
         if let Some(buffer) = buffer {
             stream
                 .write_all(buffer.as_slice())
-                .context(LogErrCtx::from_remark(
-                    LogErrorKind::Upstream,
-                    &format!("Failed to write buffers to file: '{}'", log_file.display()),
+                .upstream_with_context(&format!(
+                    "Failed to write buffers to file: '{}'",
+                    log_file.display()
                 ))?;
-            stream.flush().context(LogErrCtx::from_remark(
-                LogErrorKind::Upstream,
-                &format!("Failed to flush buffers to file: '{}'", log_file.display()),
+            stream.flush().upstream_with_context(&format!(
+                "Failed to flush buffers to file: '{}'",
+                log_file.display()
             ))?;
         }
 
@@ -277,7 +273,7 @@ impl<'a> Logger {
     }
 
     /// Set the log configuration.
-    pub fn set_log_config(log_config: &LogConfig) -> Result<(), LogError> {
+    pub fn set_log_config(log_config: &LogConfig) -> Result<()> {
         Logger::new().int_set_log_config(log_config)
     }
 
@@ -295,7 +291,7 @@ impl<'a> Logger {
         guarded_params.set_brief_info(val)
     }
 
-    fn int_set_log_config(&self, log_config: &LogConfig) -> Result<(), LogError> {
+    fn int_set_log_config(&self, log_config: &LogConfig) -> Result<()> {
         let mut guarded_params = self.inner.lock().unwrap();
         let last_max_level = *guarded_params.get_max_level();
 
@@ -320,15 +316,15 @@ impl<'a> Logger {
                                 .append(true)
                                 .create(true)
                                 .open(log_stream)
-                                .context(LogErrCtx::from_remark(
-                                    LogErrorKind::Upstream,
-                                    &format!("Failed to open log file: '{}'", log_stream.display()),
+                                .upstream_with_context(&format!(
+                                    "Failed to open log file: '{}'",
+                                    log_stream.display()
                                 ))?,
                         )),
                     )?;
                 } else {
-                    return Err(LogError::from_remark(
-                        LogErrorKind::InvParam,
+                    return Err(Error::with_context(
+                        ErrorKind::InvParam,
                         &format!(
                             "Missing parameter log_stream for destination {:?}",
                             cfg_log_dest

@@ -2,9 +2,10 @@ use log::Level;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::io::{stderr, stdout, Write};
+use std::result;
 
-use super::{LogError, LogErrorKind, DEFAULT_LOG_DEST};
-use failure::_core::str::FromStr;
+use super::{Error, ErrorKind, Result, DEFAULT_LOG_DEST};
+use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub enum LogDestination {
@@ -64,16 +65,16 @@ impl LogDestination {
 }
 
 impl FromStr for LogDestination {
-    type Err = LogError;
-    fn from_str(dest: &str) -> Result<Self, Self::Err> {
+    type Err = Error;
+    fn from_str(dest: &str) -> result::Result<Self, Self::Err> {
         if let Some(pos) = DEST_TX
             .iter()
             .position(|val| val.0.eq_ignore_ascii_case(dest))
         {
             Ok(DEST_TX[pos].1.clone())
         } else {
-            Err(LogError::from_remark(
-                LogErrorKind::InvParam,
+            Err(Error::with_context(
+                ErrorKind::InvParam,
                 &format!("Invalid log destination string encountered: '{}'", dest),
             ))
         }
@@ -173,7 +174,7 @@ impl<'a> LoggerParams {
     pub fn set_brief_info(&'a mut self, val: bool) {
         self.brief_info = val;
     }
-    pub fn is_brief_info(&'a mut self) -> bool  {
+    pub fn is_brief_info(&'a mut self) -> bool {
         self.brief_info
     }
 
@@ -255,7 +256,7 @@ impl<'a> LoggerParams {
         &mut self,
         dest: &LogDestination,
         stream: Option<S>,
-    ) -> Result<(), LogError> {
+    ) -> Result<()> {
         // TODO: flush ?
 
         self.flush();
@@ -266,8 +267,8 @@ impl<'a> LoggerParams {
                 self.log_stream = Some(Box::new(stream));
                 Ok(())
             } else {
-                Err(LogError::from_remark(
-                    LogErrorKind::InvParam,
+                Err(Error::with_context(
+                    ErrorKind::InvParam,
                     &format!("no stream given for log destination type {:?}", dest),
                 ))
             }

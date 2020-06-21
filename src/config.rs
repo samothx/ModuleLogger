@@ -1,4 +1,3 @@
-use failure::ResultExt;
 use log::{trace, Level};
 use std::collections::HashMap;
 use std::fs::read_to_string;
@@ -16,12 +15,11 @@ use serde::Deserialize;
 use serde_yaml;
 
 use crate::{
-    log_error::{LogErrCtx, LogError, LogErrorKind},
+    error::{Error, ErrorKind, Result, ToError},
     LogDestination, DEFAULT_LOG_DEST, DEFAULT_LOG_LEVEL,
 };
 
 // TODO: create log config builder and initialise Logger with config object, instead of using complex parameters for Logger::initialise
-
 
 #[derive(Debug, Deserialize)]
 struct LogConfigFile {
@@ -33,7 +31,6 @@ struct LogConfigFile {
     brief_info: Option<bool>,
     // TODO: allow to configure buffer max, implement ring buffer for log
 }
-
 
 pub struct LogConfig {
     default_level: Level,
@@ -67,7 +64,9 @@ impl<'a> LogConfig {
         self.color
     }
 
-    pub(crate) fn is_brief_info(&self) -> bool { self.brief_info }
+    pub(crate) fn is_brief_info(&self) -> bool {
+        self.brief_info
+    }
 }
 
 pub struct LogConfigBuilder {
@@ -91,42 +90,33 @@ impl<'a> LogConfigBuilder {
     }
 
     /// Create LogConfigBuilder with initial values taken from a YAML config file and defaults
-    pub fn from_file<P: AsRef<Path>>(filename: P) -> Result<LogConfigBuilder, LogError> {
+    pub fn from_file<P: AsRef<Path>>(filename: P) -> Result<LogConfigBuilder> {
         trace!("from_file: entered");
         let config_path = filename.as_ref();
 
-        let config_str = &read_to_string(&config_path).context(LogErrCtx::from_remark(
-            LogErrorKind::Upstream,
-            &format!(
-                "config::from_file: failed to read {}",
-                config_path.display()
-            ),
+        let config_str = &read_to_string(&config_path).upstream_with_context(&format!(
+            "config::from_file: failed to read {}",
+            config_path.display()
         ))?;
 
-        let cfg_file: LogConfigFile =
-            serde_yaml::from_str(config_str).context(LogErrCtx::from_remark(
-                LogErrorKind::Upstream,
-                "failed to deserialze config from yaml",
-            ))?;
+        let cfg_file: LogConfigFile = serde_yaml::from_str(config_str)
+            .upstream_with_context("failed to deserialze config from yaml")?;
 
         let mut builder = LogConfigBuilder::new();
 
         if let Some(ref level_str) = cfg_file.default_level {
-            builder.inner.default_level =
-                Level::from_str(level_str).context(LogErrCtx::from_remark(
-                    LogErrorKind::InvParam,
-                    &format!("Invalid log level: '{}'", level_str),
-                ))?;
+            builder.inner.default_level = Level::from_str(level_str)
+                .upstream_with_context(&format!("Invalid log level: '{}'", level_str))?;
         }
 
         if let Some(ref mod_level) = cfg_file.mod_level {
             for (mod_name, mod_level) in mod_level {
                 builder.inner.mod_level.insert(
                     mod_name.clone(),
-                    Level::from_str(mod_level).context(LogErrCtx::from_remark(
-                        LogErrorKind::InvParam,
+                    Level::from_str(mod_level).error_with_all(
+                        ErrorKind::InvParam,
                         &format!("Invalid log level: '{}'", mod_level),
-                    ))?,
+                    )?,
                 );
             }
         }
@@ -137,8 +127,8 @@ impl<'a> LogConfigBuilder {
                 if let Some(stream) = cfg_file.log_stream {
                     builder.inner.log_stream = Some(stream)
                 } else {
-                    return Err(LogError::from_remark(
-                        LogErrorKind::InvParam,
+                    return Err(Error::with_context(
+                        ErrorKind::InvParam,
                         &format!(
                             "Missing log stream parameter for log destination {:?}",
                             dest
@@ -179,13 +169,13 @@ impl<'a> LogConfigBuilder {
         &'a mut self,
         dest: LogDestination,
         file: Option<&PathBuf>,
-    ) -> Result<&'a mut LogConfigBuilder, LogError> {
+    ) -> Result<&'a mut LogConfigBuilder> {
         if dest.is_stream_dest() {
             if let Some(stream) = file {
                 self.inner.log_stream = Some(stream.clone());
             } else {
-                return Err(LogError::from_remark(
-                    LogErrorKind::InvParam,
+                return Err(Error::with_context(
+                    ErrorKind::InvParam,
                     &format!("Missing parameter stream for log destination: {:?}", dest),
                 ));
             }
