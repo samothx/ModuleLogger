@@ -90,6 +90,7 @@ pub(crate) struct LoggerParams {
     max_level: Level,
     color: bool,
     brief_info: bool,
+    timestamp: bool,
     initialised: bool,
 }
 
@@ -105,6 +106,7 @@ impl<'a> LoggerParams {
             initialised: false,
             color: false,
             brief_info: false,
+            timestamp: true,
         }
     }
 
@@ -128,7 +130,7 @@ impl<'a> LoggerParams {
         self.max_level = max_level;
     }
 
-    pub fn get_max_level(&'a self) -> &'a Level {
+    pub fn max_level(&'a self) -> &'a Level {
         &self.max_level
     }
 
@@ -147,35 +149,26 @@ impl<'a> LoggerParams {
             }
         }
     }
-    /*
-            if let Some(ref level) = self.mod_level.get(module) {
-                Some(level)
-            } else {
-                let mut mod_path = module.clone();
-                while let Some(index) = mod_path.rfind("::")  {
-                    let (mod_path, _dummy) = mod_path.split_at(index);
-                    if let Some(ref level) = self.mod_level.get(mod_path) {
-                        return Some(level);
-                    }
-                }
-                None
-            }
-        }
-    */
 
     pub fn set_color(&'a mut self, color: bool) {
         self.color = color;
     }
 
-    pub fn is_color(&'a mut self) -> bool {
+    pub fn color(&'a mut self) -> bool {
         self.color
     }
 
     pub fn set_brief_info(&'a mut self, val: bool) {
         self.brief_info = val;
     }
-    pub fn is_brief_info(&'a mut self) -> bool {
+    pub fn brief_info(&'a mut self) -> bool {
         self.brief_info
+    }
+    pub fn set_timestamp(&'a mut self, val: bool) {
+        self.timestamp = val;
+    }
+    pub fn timestamp(&'a mut self) -> bool {
+        self.timestamp
     }
 
     pub fn set_mod_level(&'a mut self, module: &str, level: Level) -> &'a Level {
@@ -191,7 +184,7 @@ impl<'a> LoggerParams {
     pub fn set_mod_config(&'a mut self, mod_config: &HashMap<String, Level>) -> &'a Level {
         for module in mod_config.keys() {
             if let Some(ref level) = mod_config.get(module) {
-                self.mod_level.insert(module.clone(), (*level).clone());
+                self.mod_level.insert(module.clone(), *(*level));
             }
         }
         self.recalculate_max_level();
@@ -200,9 +193,9 @@ impl<'a> LoggerParams {
 
     pub fn set_default_level(&'a mut self, level: Level) -> Level {
         self.default_level = level;
-        if level > self.max_level {
+        if level >= self.max_level {
             self.max_level = level;
-        } else if level < self.max_level {
+        } else {
             self.recalculate_max_level()
         }
         self.max_level
@@ -216,11 +209,11 @@ impl<'a> LoggerParams {
         &self.log_dest
     }
 
-    pub fn get_log_stream(&mut self) -> &mut Option<Box<dyn 'static + Write + Send>> {
+    pub fn log_stream(&mut self) -> &mut Option<Box<dyn 'static + Write + Send>> {
         &mut self.log_stream
     }
 
-    pub fn get_log_buffer(&mut self) -> Option<&mut Vec<u8>> {
+    pub fn log_buffer(&mut self) -> Option<&mut Vec<u8>> {
         if let Some(ref mut buffer) = self.log_buffer {
             Some(buffer)
         } else {
@@ -240,7 +233,7 @@ impl<'a> LoggerParams {
 
     pub fn flush(&mut self) {
         if self.log_dest.is_stream_dest() {
-            if let Some(ref mut stream) = self.get_log_stream() {
+            if let Some(ref mut stream) = self.log_stream() {
                 let _res = stream.flush();
             }
         }

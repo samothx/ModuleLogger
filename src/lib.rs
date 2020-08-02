@@ -146,14 +146,7 @@ impl<'a> Logger {
                 }
             }
 
-            log::set_max_level(
-                logger
-                    .inner
-                    .lock()
-                    .unwrap()
-                    .get_max_level()
-                    .to_level_filter(),
-            );
+            log::set_max_level(logger.inner.lock().unwrap().max_level().to_level_filter());
         }
 
         // dbg!("Logger::new: done");
@@ -176,7 +169,7 @@ impl<'a> Logger {
     pub fn set_default_level(log_level: Level) {
         let logger = Logger::new();
         let mut guarded_params = logger.inner.lock().unwrap();
-        let last_max_level = *guarded_params.get_max_level();
+        let last_max_level = *guarded_params.max_level();
         let max_level = guarded_params.set_default_level(log_level);
 
         if last_max_level != max_level {
@@ -194,7 +187,7 @@ impl<'a> Logger {
     pub fn set_mod_level(module: &str, log_level: Level) {
         let logger = Logger::new();
         let mut guarded_params = logger.inner.lock().unwrap();
-        let last_max_level = *guarded_params.get_max_level();
+        let last_max_level = *guarded_params.max_level();
         let max_level = guarded_params.set_mod_level(module, log_level);
         if last_max_level != *max_level {
             log::set_max_level(max_level.to_level_filter());
@@ -284,6 +277,13 @@ impl<'a> Logger {
         guarded_params.set_color(color)
     }
 
+    /// Enable / disable timestamp in messages
+    pub fn set_timestamp(val: bool) {
+        let logger = Logger::new();
+        let mut guarded_params = logger.inner.lock().unwrap();
+        guarded_params.set_timestamp(val)
+    }
+
     /// Enable / disable brief info messages
     pub fn set_brief_info(val: bool) {
         let logger = Logger::new();
@@ -293,7 +293,7 @@ impl<'a> Logger {
 
     fn int_set_log_config(&self, log_config: &LogConfig) -> Result<()> {
         let mut guarded_params = self.inner.lock().unwrap();
-        let last_max_level = *guarded_params.get_max_level();
+        let last_max_level = *guarded_params.max_level();
 
         guarded_params.set_default_level(log_config.get_default_level());
 
@@ -382,25 +382,31 @@ impl Log for Logger {
             level = mod_level;
         }
 
+        let timestamp = if guarded_params.timestamp() {
+            format!("{} ", Local::now().format("%Y-%m-%d %H:%M:%S"))
+        } else {
+            "".to_owned()
+        };
+
         if curr_level <= level {
-            let mut output = if guarded_params.is_brief_info() && (curr_level == Level::Info) {
+            let mut output = if guarded_params.brief_info() && (curr_level == Level::Info) {
                 format!(
-                    "{} {:<5} {}\n",
-                    Local::now().format("%Y-%m-%d %H:%M:%S"),
+                    "{}{:<5} {}\n",
+                    timestamp,
                     record.level().to_string(),
                     record.args()
                 )
             } else {
                 format!(
-                    "{} {:<5} [{}] {}\n",
-                    Local::now().format("%Y-%m-%d %H:%M:%S"),
+                    "{}{:<5} [{}] {}\n",
+                    timestamp,
                     record.level().to_string(),
                     &mod_name,
                     record.args()
                 )
             };
 
-            if guarded_params.is_color() {
+            if guarded_params.color() {
                 output = match curr_level {
                     Level::Error => format!("{}", output.red()),
                     Level::Warn => format!("{}", output.yellow()),
@@ -414,39 +420,39 @@ impl Log for Logger {
                 LogDestination::Stderr => stderr().write(output.as_bytes()),
                 LogDestination::Stdout => stdout().write(output.as_bytes()),
                 LogDestination::Stream => {
-                    if let Some(ref mut stream) = guarded_params.get_log_stream() {
+                    if let Some(ref mut stream) = guarded_params.log_stream() {
                         stream.write(output.as_bytes())
                     } else {
                         stderr().write(output.as_bytes())
                     }
                 }
                 LogDestination::StreamStdout => {
-                    if let Some(ref mut stream) = guarded_params.get_log_stream() {
+                    if let Some(ref mut stream) = guarded_params.log_stream() {
                         let _wres = stream.write(output.as_bytes());
                     }
                     stdout().write(output.as_bytes())
                 }
                 LogDestination::StreamStderr => {
-                    if let Some(ref mut stream) = guarded_params.get_log_stream() {
+                    if let Some(ref mut stream) = guarded_params.log_stream() {
                         let _wres = stream.write(output.as_bytes());
                     }
                     stderr().write(output.as_bytes())
                 }
                 LogDestination::Buffer => {
-                    if let Some(ref mut buffer) = guarded_params.get_log_buffer() {
+                    if let Some(ref mut buffer) = guarded_params.log_buffer() {
                         buffer.write(output.as_bytes())
                     } else {
                         stderr().write(output.as_bytes())
                     }
                 }
                 LogDestination::BufferStdout => {
-                    if let Some(ref mut buffer) = guarded_params.get_log_buffer() {
+                    if let Some(ref mut buffer) = guarded_params.log_buffer() {
                         let _wres = buffer.write(output.as_bytes());
                     }
                     stdout().write(output.as_bytes())
                 }
                 LogDestination::BufferStderr => {
-                    if let Some(ref mut buffer) = guarded_params.get_log_buffer() {
+                    if let Some(ref mut buffer) = guarded_params.log_buffer() {
                         let _wres = buffer.write(output.as_bytes());
                     }
                     stderr().write(output.as_bytes())
