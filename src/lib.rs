@@ -393,13 +393,9 @@ impl Log for Logger {
             let now = Local::now();
             if guarded_params.millis() {
                 let ts_millis = now.timestamp_millis() % 1000;
-                format!(
-                    "{}.{:03} ",
-                    Local::now().format("%Y-%m-%d %H:%M:%S"),
-                    ts_millis
-                )
+                format!("{}.{:03} ", now.format("%Y-%m-%d %H:%M:%S"), ts_millis)
             } else {
-                format!("{} ", Local::now().format("%Y-%m-%d %H:%M:%S"))
+                format!("{} ", now.format("%Y-%m-%d %H:%M:%S"))
             }
         } else {
             "".to_owned()
