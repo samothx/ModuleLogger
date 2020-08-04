@@ -284,6 +284,13 @@ impl<'a> Logger {
         guarded_params.set_timestamp(val)
     }
 
+    /// Enable / disable timestamp in messages
+    pub fn set_millis(val: bool) {
+        let logger = Logger::new();
+        let mut guarded_params = logger.inner.lock().unwrap();
+        guarded_params.set_millis(val)
+    }
+
     /// Enable / disable brief info messages
     pub fn set_brief_info(val: bool) {
         let logger = Logger::new();
@@ -383,7 +390,17 @@ impl Log for Logger {
         }
 
         let timestamp = if guarded_params.timestamp() {
-            format!("{} ", Local::now().format("%Y-%m-%d %H:%M:%S"))
+            let now = Local::now();
+            if guarded_params.millis() {
+                let ts_millis = now.timestamp_millis() % 1000;
+                format!(
+                    "{}.{:03} ",
+                    Local::now().format("%Y-%m-%d %H:%M:%S"),
+                    ts_millis
+                )
+            } else {
+                format!("{} ", Local::now().format("%Y-%m-%d %H:%M:%S"))
+            }
         } else {
             "".to_owned()
         };

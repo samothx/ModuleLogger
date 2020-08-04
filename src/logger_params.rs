@@ -91,6 +91,7 @@ pub(crate) struct LoggerParams {
     color: bool,
     brief_info: bool,
     timestamp: bool,
+    millis: bool,
     initialised: bool,
 }
 
@@ -107,6 +108,7 @@ impl<'a> LoggerParams {
             color: false,
             brief_info: false,
             timestamp: true,
+            millis: false,
         }
     }
 
@@ -164,11 +166,19 @@ impl<'a> LoggerParams {
     pub fn brief_info(&'a mut self) -> bool {
         self.brief_info
     }
+
     pub fn set_timestamp(&'a mut self, val: bool) {
         self.timestamp = val;
     }
     pub fn timestamp(&'a mut self) -> bool {
         self.timestamp
+    }
+
+    pub fn set_millis(&'a mut self, val: bool) {
+        self.millis = val;
+    }
+    pub fn millis(&'a mut self) -> bool {
+        self.millis
     }
 
     pub fn set_mod_level(&'a mut self, module: &str, level: Level) -> &'a Level {
