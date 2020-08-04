@@ -1,6 +1,6 @@
 [package]
 name = "mod_logger"
-version = "0.7.1"
+version = "0.7.2"
 authors = ["Thomas Runte <thomas@etnur.net>"]
 edition = "2018"
 description = "A consumer for the log crate that allows module wise configuration."
