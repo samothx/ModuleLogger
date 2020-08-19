@@ -1,4 +1,5 @@
 use log::Level;
+#[cfg(feature = "config")]
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::io::{stderr, stdout, Write};
@@ -7,24 +8,48 @@ use std::result;
 use super::{Error, ErrorKind, Result, DEFAULT_LOG_DEST};
 use std::str::FromStr;
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-pub enum LogDestination {
-    /// log to stdout
-    Stdout,
-    /// log to stderr
-    Stderr,
-    /// log to an output file
-    Stream,
-    /// log to an output file and to stdout
-    StreamStdout,
-    /// log to an output file and to stderr
-    StreamStderr,
-    /// log to a memory buffer
-    Buffer,
-    /// log to stdout and to a memory buffer
-    BufferStdout,
-    /// log to stderr and to a memory buffer
-    BufferStderr,
+cfg_if::cfg_if! {
+    if #[cfg(feature = "config")] {
+        #[derive(Debug, Clone, PartialEq, Deserialize)]
+        pub enum LogDestination {
+            /// log to stdout
+            Stdout,
+            /// log to stderr
+            Stderr,
+            /// log to an output file
+            Stream,
+            /// log to an output file and to stdout
+            StreamStdout,
+            /// log to an output file and to stderr
+            StreamStderr,
+            /// log to a memory buffer
+            Buffer,
+            /// log to stdout and to a memory buffer
+            BufferStdout,
+            /// log to stderr and to a memory buffer
+            BufferStderr,
+        }
+    } else {
+        #[derive(Debug, Clone, PartialEq)]
+        pub enum LogDestination {
+            /// log to stdout
+            Stdout,
+            /// log to stderr
+            Stderr,
+            /// log to an output file
+            Stream,
+            /// log to an output file and to stdout
+            StreamStdout,
+            /// log to an output file and to stderr
+            StreamStderr,
+            /// log to a memory buffer
+            Buffer,
+            /// log to stdout and to a memory buffer
+            BufferStdout,
+            /// log to stderr and to a memory buffer
+            BufferStderr,
+        }
+    }
 }
 
 const DEST_TX: &[(&str, LogDestination); 8] = &[
@@ -191,6 +216,7 @@ impl<'a> LoggerParams {
         &self.max_level
     }
 
+    #[cfg(feature = "config")]
     pub fn set_mod_config(&'a mut self, mod_config: &HashMap<String, Level>) -> &'a Level {
         for module in mod_config.keys() {
             if let Some(ref level) = mod_config.get(module) {

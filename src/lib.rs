@@ -37,7 +37,9 @@ use colored::*;
 use log::{Log, Metadata, Record};
 use regex::Regex;
 use std::env;
-use std::fs::{File, OpenOptions};
+use std::fs::File;
+#[cfg(feature = "config")]
+use std::fs::OpenOptions;
 use std::io::{stderr, stdout, BufWriter, Write};
 use std::mem;
 use std::sync::{Arc, Mutex, Once}; //, BufWriter};
@@ -45,7 +47,9 @@ mod error;
 use error::{Error, ErrorKind, Result};
 use std::path::Path;
 
+#[cfg(feature = "config")]
 pub mod config;
+#[cfg(feature = "config")]
 pub use config::LogConfig;
 
 mod logger_params;
@@ -59,6 +63,7 @@ pub(crate) const DEFAULT_LOG_DEST: LogDestination = LogDestination::Stderr;
 
 pub const NO_STREAM: Option<Box<dyn 'static + Write + Send>> = None;
 
+#[cfg(feature = "config")]
 use crate::config::LogConfigBuilder;
 use crate::error::ToError;
 pub use log::Level;
@@ -117,6 +122,7 @@ impl<'a> Logger {
         if !logger.inner.lock().unwrap().initialised() {
             // looks like we only just created it
             // look for LOG_CONFIG in ENV
+            #[cfg(feature = "config")]
             if let Ok(config_path) = env::var("LOG_CONFIG") {
                 match LogConfigBuilder::from_file(&config_path) {
                     Ok(ref log_config) => match logger.int_set_log_config(log_config.build()) {
@@ -266,6 +272,7 @@ impl<'a> Logger {
     }
 
     /// Set the log configuration.
+    #[cfg(feature = "config")]
     pub fn set_log_config(log_config: &LogConfig) -> Result<()> {
         Logger::new().int_set_log_config(log_config)
     }
@@ -298,6 +305,7 @@ impl<'a> Logger {
         guarded_params.set_brief_info(val)
     }
 
+    #[cfg(feature = "config")]
     fn int_set_log_config(&self, log_config: &LogConfig) -> Result<()> {
         let mut guarded_params = self.inner.lock().unwrap();
         let last_max_level = *guarded_params.max_level();

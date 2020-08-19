@@ -1,16 +1,10 @@
+#![cfg(feature = "config")]
 use log::{trace, Level};
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs::read_to_string;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-/*use std::fmt;
-
-use serde::{
-    de::{self, Unexpected},
-    Deserialize, Deserializer,
-};
-*/
-use serde::Deserialize;
 
 use serde_yaml;
 
