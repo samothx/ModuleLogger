@@ -42,17 +42,22 @@ use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::{stderr, stdout, BufWriter, Write};
 use std::mem;
-use std::sync::{Arc, Mutex, Once}; //, BufWriter};
+use std::sync::{Arc, Mutex, Once};
+
+//, BufWriter};
 mod error;
+
 use error::{Error, ErrorKind, Result};
 use std::path::Path;
 
 #[cfg(feature = "config")]
 pub mod config;
+
 #[cfg(feature = "config")]
 pub use config::LogConfig;
 
 mod logger_params;
+
 pub use logger_params::LogDestination;
 use logger_params::LoggerParams;
 
@@ -94,10 +99,7 @@ impl<'a> Logger {
 
         let exe_name = match env::current_exe() {
             Ok(exe_name) => match exe_name.file_name() {
-                Some(exe_name) => match exe_name.to_str() {
-                    Some(exe_name) => Some(exe_name.to_owned()),
-                    None => None,
-                },
+                Some(exe_name) => exe_name.to_str().map(|name| name.to_owned()),
                 None => None,
             },
             Err(_why) => None,
@@ -375,12 +377,10 @@ impl Log for Logger {
                     } else {
                         (mod_path.to_owned(), mod_path.to_owned())
                     }
+                } else if mod_path == exe_name {
+                    (mod_path.to_owned(), String::from("main"))
                 } else {
-                    if mod_path == exe_name {
-                        (mod_path.to_owned(), String::from("main"))
-                    } else {
-                        (mod_path.to_owned(), mod_path.to_owned())
-                    }
+                    (mod_path.to_owned(), mod_path.to_owned())
                 }
             } else {
                 (mod_path.to_owned(), mod_path.to_owned())

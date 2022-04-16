@@ -6,6 +6,7 @@ use std::io::{stderr, stdout, Write};
 use std::result;
 
 use super::{Error, ErrorKind, Result, DEFAULT_LOG_DEST};
+use std::cmp::Ordering;
 use std::str::FromStr;
 
 cfg_if::cfg_if! {
@@ -165,8 +166,8 @@ impl<'a> LoggerParams {
         let mut mod_path = module;
 
         loop {
-            if let Some(ref level) = self.mod_level.get(mod_path) {
-                return Some(**level);
+            if let Some(level) = self.mod_level.get(mod_path) {
+                return Some(*level);
             }
             if let Some(index) = mod_path.rfind("::") {
                 let (mod_new, _dumm) = mod_path.split_at(index);
@@ -207,12 +208,16 @@ impl<'a> LoggerParams {
     }
 
     pub fn set_mod_level(&'a mut self, module: &str, level: Level) -> &'a Level {
-        self.mod_level.insert(String::from(module), level.clone());
-        if level > self.max_level {
-            self.max_level = level;
-        } else if level < self.max_level {
-            self.recalculate_max_level();
-        }
+        self.mod_level.insert(String::from(module), level);
+        match level.cmp(&self.max_level) {
+            Ordering::Greater => {
+                self.max_level = level;
+            }
+            Ordering::Less => {
+                self.recalculate_max_level();
+            }
+            _ => (),
+        };
         &self.max_level
     }
 
