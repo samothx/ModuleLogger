@@ -126,6 +126,7 @@ impl<'a> Logger {
             // look for LOG_CONFIG in ENV
             #[cfg(feature = "config")]
             if let Ok(config_path) = env::var("LOG_CONFIG") {
+                eprintln!("LOG_CONFIG={}", config_path);
                 match LogConfigBuilder::from_file(&config_path) {
                     Ok(ref log_config) => match logger.int_set_log_config(log_config.build()) {
                         Ok(_res) => (),
