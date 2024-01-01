@@ -87,7 +87,7 @@ pub struct Logger {
     exe_name: Option<String>,
 }
 
-impl<'a> Logger {
+impl Logger {
     /// Create a new Logger or retrieve the existing one.\
     /// The function is private, Logger is meant to be used via its static interface
     /// Any of the static functions will initialise a Logger instance
@@ -99,7 +99,9 @@ impl<'a> Logger {
 
         let exe_name = match env::current_exe() {
             Ok(exe_name) => match exe_name.file_name() {
-                Some(exe_name) => exe_name.to_str().map(|name| name.to_owned()),
+                Some(exe_name) => exe_name
+                    .to_str()
+                    .map(|name| name.to_owned().replace('-', "_")),
                 None => None,
             },
             Err(_why) => None,

@@ -1,5 +1,5 @@
 #![cfg(feature = "config")]
-use log::{trace, Level};
+use log::Level;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs::read_to_string;
@@ -85,10 +85,9 @@ impl<'a> LogConfigBuilder {
 
     /// Create LogConfigBuilder with initial values taken from a YAML config file and defaults
     pub fn from_file<P: AsRef<Path>>(filename: P) -> Result<LogConfigBuilder> {
-        trace!("from_file: entered");
         let config_path = filename.as_ref();
 
-        let config_str = &read_to_string(&config_path).upstream_with_context(&format!(
+        let config_str = &read_to_string(config_path).upstream_with_context(&format!(
             "config::from_file: failed to read {}",
             config_path.display()
         ))?;

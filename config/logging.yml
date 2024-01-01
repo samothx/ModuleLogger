@@ -1,5 +1,6 @@
-log_level: 'trace'
+default_level: 'trace'
 log_dest: 'Stderr'
+brief_info: true
 # log_dest: 'stream'
 # log_stream: 'debug.log'
 color: true

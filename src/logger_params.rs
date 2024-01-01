@@ -224,8 +224,8 @@ impl<'a> LoggerParams {
     #[cfg(feature = "config")]
     pub fn set_mod_config(&'a mut self, mod_config: &HashMap<String, Level>) -> &'a Level {
         for module in mod_config.keys() {
-            if let Some(ref level) = mod_config.get(module) {
-                self.mod_level.insert(module.clone(), *(*level));
+            if let Some(level) = mod_config.get(module) {
+                self.mod_level.insert(module.clone(), *level);
             }
         }
         self.recalculate_max_level();
