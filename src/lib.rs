@@ -128,7 +128,7 @@ impl Logger {
             // look for LOG_CONFIG in ENV
             #[cfg(feature = "config")]
             if let Ok(config_path) = env::var("LOG_CONFIG") {
-                eprintln!("LOG_CONFIG={}", config_path);
+                // eprintln!("LOG_CONFIG={}", config_path);
                 match LogConfigBuilder::from_file(&config_path) {
                     Ok(ref log_config) => match logger.int_set_log_config(log_config.build()) {
                         Ok(_res) => (),
@@ -331,7 +331,7 @@ impl Logger {
                 if let Some(log_stream) = log_config.get_log_stream() {
                     guarded_params.set_log_dest(
                         cfg_log_dest,
-                        Some(BufWriter::new(
+                        Some(
                             OpenOptions::new()
                                 .append(true)
                                 .create(true)
@@ -340,7 +340,7 @@ impl Logger {
                                     "Failed to open log file: '{}'",
                                     log_stream.display()
                                 ))?,
-                        )),
+                        ),
                     )?;
                 } else {
                     return Err(Error::with_context(
@@ -400,19 +400,19 @@ impl Log for Logger {
             level = mod_level;
         }
 
-        let timestamp = if guarded_params.timestamp() {
-            let now = Local::now();
-            if guarded_params.millis() {
-                let ts_millis = now.timestamp_millis() % 1000;
-                format!("{}.{:03} ", now.format("%Y-%m-%d %H:%M:%S"), ts_millis)
-            } else {
-                format!("{} ", now.format("%Y-%m-%d %H:%M:%S"))
-            }
-        } else {
-            "".to_owned()
-        };
-
         if curr_level <= level {
+            let timestamp = if guarded_params.timestamp() {
+                let now = Local::now();
+                if guarded_params.millis() {
+                    let ts_millis = now.timestamp_millis() % 1000;
+                    format!("{}.{:03} ", now.format("%Y-%m-%d %H:%M:%S"), ts_millis)
+                } else {
+                    format!("{} ", now.format("%Y-%m-%d %H:%M:%S"))
+                }
+            } else {
+                "".to_owned()
+            };
+
             let mut output = if guarded_params.brief_info() && (curr_level == Level::Info) {
                 format!(
                     "{}{:<5} {}\n",

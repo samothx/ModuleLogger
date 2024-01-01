@@ -20,6 +20,7 @@ struct LogConfigFile {
     default_level: Option<String>,
     mod_level: Option<HashMap<String, String>>,
     log_dest: Option<String>,
+    // TODO: allow buffered log_stream
     log_stream: Option<PathBuf>,
     color: Option<bool>,
     brief_info: Option<bool>,
@@ -118,6 +119,7 @@ impl<'a> LogConfigBuilder {
             let dest = LogDestination::from_str(dest_str)?;
             if dest.is_stream_dest() {
                 if let Some(stream) = cfg_file.log_stream {
+                    builder.inner.log_dest = dest;
                     builder.inner.log_stream = Some(stream)
                 } else {
                     return Err(Error::with_context(
@@ -128,6 +130,8 @@ impl<'a> LogConfigBuilder {
                         ),
                     ));
                 }
+            } else {
+                builder.inner.log_dest = dest;
             }
             // TODO: read params for future ring buffer size
         }
