@@ -56,6 +56,9 @@ pub mod config;
 #[cfg(feature = "config")]
 pub use config::LogConfig;
 
+#[cfg(feature = "config")]
+pub use config::LogConfigBuilder;
+
 mod logger_params;
 
 pub use logger_params::LogDestination;
@@ -68,8 +71,6 @@ pub(crate) const DEFAULT_LOG_DEST: LogDestination = LogDestination::Stderr;
 
 pub const NO_STREAM: Option<Box<dyn 'static + Write + Send>> = None;
 
-#[cfg(feature = "config")]
-use crate::config::LogConfigBuilder;
 use crate::error::ToError;
 pub use log::Level;
 
